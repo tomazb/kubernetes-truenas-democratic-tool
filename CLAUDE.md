@@ -2,6 +2,10 @@
 
 This file provides guidance to AI assistants when working with code in this repository.
 
+## Project Repository
+
+**GitHub:** https://github.com/tomazb/kubernetes-truenas-democratic-tool
+
 ## Project Overview
 
 This tool analyzes and monitors the integration between OpenShift, TrueNAS Scale, and democratic-csi to identify configuration issues, orphaned resources, and ensure best practices.
