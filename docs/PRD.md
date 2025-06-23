@@ -239,7 +239,7 @@ An open-source, security-first tool that:
 
 ### 4.4 Deployment Options
 1. **Standalone Binary** - Single-node deployments
-2. **Container** - Docker/Podman compatible
+2. **Container** - Podman (rootless containers)
 3. **Kubernetes Operator** - Automated lifecycle management
 4. **Helm Chart** - Customizable deployment
 

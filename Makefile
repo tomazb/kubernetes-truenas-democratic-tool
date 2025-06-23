@@ -104,21 +104,21 @@ fmt: ## Format all code
 	cd go && go fmt ./...
 	cd python && black .
 
-# Docker targets
-.PHONY: docker-build-monitor
-docker-build-monitor: ## Build monitor service container
-	docker build -f deploy/docker/Dockerfile.monitor -t truenas-monitor:latest .
+# Container targets (using Podman)
+.PHONY: container-build-monitor
+container-build-monitor: ## Build monitor service container
+	podman build -f deploy/container/Containerfile.monitor -t truenas-monitor:latest .
 
-.PHONY: docker-build-api
-docker-build-api: ## Build API server container
-	docker build -f deploy/docker/Dockerfile.api -t truenas-api:latest .
+.PHONY: container-build-api
+container-build-api: ## Build API server container
+	podman build -f deploy/container/Containerfile.api -t truenas-api:latest .
 
-.PHONY: docker-build-cli
-docker-build-cli: ## Build CLI tool container
-	docker build -f deploy/docker/Dockerfile.cli -t truenas-cli:latest .
+.PHONY: container-build-cli
+container-build-cli: ## Build CLI tool container
+	podman build -f deploy/container/Containerfile.cli -t truenas-cli:latest .
 
-.PHONY: docker-build-all
-docker-build-all: docker-build-monitor docker-build-api docker-build-cli ## Build all containers
+.PHONY: container-build-all
+container-build-all: container-build-monitor container-build-api container-build-cli ## Build all containers
 
 # Kubernetes/OpenShift targets
 .PHONY: k8s-deploy

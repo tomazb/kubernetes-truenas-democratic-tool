@@ -680,7 +680,7 @@ sequenceDiagram
 
 | Category | Technology | Purpose |
 |----------|------------|---------|
-| Container Runtime | Docker/Podman | Containerization |
+| Container Runtime | Podman | Containerization |
 | Orchestration | Kubernetes/OpenShift | Container orchestration |
 | Cache | Redis | Temporary data storage |
 | Metrics | Prometheus | Time-series metrics |

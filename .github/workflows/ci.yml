@@ -173,28 +173,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
         
       - name: Build monitor container
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./deploy/docker/Dockerfile.monitor
-          push: false
-          tags: test-monitor:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          podman build -f ./deploy/container/Containerfile.monitor -t test-monitor:latest .
           
       - name: Build CLI container
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./deploy/docker/Dockerfile.cli
-          push: false
-          tags: test-cli:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          podman build -f ./deploy/container/Containerfile.cli -t test-cli:latest .
           
   # Integration tests (only on main/develop)
   integration-test:

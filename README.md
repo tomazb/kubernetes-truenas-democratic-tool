@@ -114,8 +114,8 @@ make test-watch
 # Build all components
 make build-all
 
-# Build containers
-make docker-build-all
+# Build containers (using Podman)
+make container-build-all
 ```
 
 ## Documentation

@@ -104,7 +104,7 @@ Python: 12.3 seconds, 180MB RAM
 
 ### Go
 **Container Image Size:**
-```dockerfile
+```containerfile
 # Multi-stage build
 FROM golang:1.21 AS builder
 # Build stage...
@@ -120,7 +120,7 @@ COPY --from=builder /app/monitor /monitor
 
 ### Python
 **Container Image Size:**
-```dockerfile
+```containerfile
 FROM python:3.11-slim
 # Install dependencies...
 # Final image: 150-300MB

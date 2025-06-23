@@ -85,12 +85,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: false
-          tags: test:latest
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+      - name: Build with Podman
+        run: |
+          podman build -t test:latest .
 ```
 
 #### Testing & Quality
@@ -248,16 +249,16 @@ curl -H "Authorization: Bearer $TOKEN" \
      http://monitor-api:8080/api/v1/orphans
 ```
 
-### 2. Container Usage
+### 2. Container Usage (with Podman)
 ```bash
 # Run monitoring service (Go)
-docker run -d --name monitor \
+podman run -d --name monitor \
            -v ~/.kube:/home/app/.kube:ro \
            -v ./config.yaml:/app/config.yaml:ro \
            ghcr.io/yourusername/truenas-monitor:latest
 
 # Run CLI tool (Python)
-docker run --rm -it \
+podman run --rm -it \
            -v ~/.kube:/home/app/.kube:Z \
            -v ./config.yaml:/app/config.yaml:Z \
            ghcr.io/yourusername/truenas-cli:latest analyze
@@ -399,12 +400,12 @@ make build-all  # Builds Go binaries and Python packages
 make security-scan
 
 # Container builds
-make docker-build-monitor  # Go monitoring service
-make docker-build-cli      # Python CLI tools
+make container-build-monitor  # Go monitoring service
+make container-build-cli      # Python CLI tools
 ```
 
 ### Container Architecture
-```dockerfile
+```containerfile
 # Go service container (15-40MB)
 FROM golang:1.21 AS go-builder
 # ... build steps ...
