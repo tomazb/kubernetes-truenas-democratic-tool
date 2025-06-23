@@ -15,7 +15,7 @@ require (
 
 require (
 	github.com/go-logr/logr v1.3.0
-	github.com/go-resty/resty/v2 v2.10.0
+	github.com/go-resty/resty/v2 v2.11.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
