@@ -1,0 +1,206 @@
+# TrueNAS Storage Monitor Configuration
+# Copy this file to config.yaml and update with your values
+
+# OpenShift/Kubernetes configuration
+openshift:
+  # Path to kubeconfig file (optional if running in-cluster)
+  kubeconfig: ~/.kube/config
+  
+  # Context to use (optional, uses current context if not specified)
+  # context: my-cluster
+  
+  # Namespace where democratic-csi is installed
+  namespace: democratic-csi
+  
+  # Additional namespaces to monitor (optional)
+  # monitor_namespaces:
+  #   - default
+  #   - production
+
+# TrueNAS configuration
+truenas:
+  # TrueNAS API URL
+  url: https://truenas.example.com
+  
+  # API credentials (use environment variables for production)
+  username: ${TRUENAS_USERNAME}
+  password: ${TRUENAS_PASSWORD}
+  
+  # API key (alternative to username/password)
+  # api_key: ${TRUENAS_API_KEY}
+  
+  # Skip TLS verification (not recommended for production)
+  insecure: false
+  
+  # Connection timeout in seconds
+  timeout: 30
+  
+  # Pool to monitor (optional, monitors all if not specified)
+  # pool: tank
+
+# Monitoring configuration
+monitoring:
+  # How often to check for orphaned resources
+  orphan_check_interval: 1h
+  
+  # Resources older than this are considered orphaned
+  orphan_threshold: 24h
+  
+  # Snapshot monitoring
+  snapshot:
+    # Maximum age before alerting
+    max_age: 30d
+    
+    # Maximum count per volume before alerting
+    max_count: 50
+    
+    # Check interval
+    check_interval: 6h
+    
+  # Storage usage thresholds
+  storage:
+    # Alert when pool usage exceeds this percentage
+    pool_warning_threshold: 80
+    pool_critical_threshold: 90
+    
+    # Alert when volume usage exceeds this percentage
+    volume_warning_threshold: 85
+    volume_critical_threshold: 95
+    
+    # Thin provisioning overcommit ratio
+    max_overcommit_ratio: 2.0
+
+# Alert configuration
+alerts:
+  # Enable/disable alerting
+  enabled: true
+  
+  # Slack webhook (optional)
+  slack:
+    webhook_url: ${SLACK_WEBHOOK_URL}
+    channel: "#storage-alerts"
+    username: "TrueNAS Monitor"
+    
+  # Email configuration (optional)
+  email:
+    smtp_host: smtp.example.com
+    smtp_port: 587
+    smtp_user: ${SMTP_USER}
+    smtp_password: ${SMTP_PASSWORD}
+    from: alerts@example.com
+    to:
+      - admin@example.com
+      - storage-team@example.com
+      
+  # PagerDuty (optional)
+  pagerduty:
+    integration_key: ${PAGERDUTY_KEY}
+    
+  # Webhook for custom integrations (optional)
+  webhook:
+    url: https://example.com/webhook
+    headers:
+      Authorization: "Bearer ${WEBHOOK_TOKEN}"
+
+# Reporting configuration
+reporting:
+  # Generate daily reports
+  daily_report:
+    enabled: true
+    time: "08:00"
+    
+  # Generate weekly reports
+  weekly_report:
+    enabled: true
+    day: "monday"
+    time: "09:00"
+    
+  # Report output directory
+  output_dir: /var/lib/truenas-monitor/reports
+  
+  # Report formats
+  formats:
+    - html
+    - pdf
+    - json
+
+# API server configuration
+api:
+  # Listen address
+  listen: "0.0.0.0:8080"
+  
+  # Enable TLS
+  tls:
+    enabled: true
+    cert_file: /etc/truenas-monitor/tls/cert.pem
+    key_file: /etc/truenas-monitor/tls/key.pem
+    
+  # Authentication
+  auth:
+    # API key authentication
+    api_key:
+      enabled: true
+      # Keys are stored in separate file or k8s secret
+      keys_file: /etc/truenas-monitor/api-keys.yaml
+      
+    # JWT authentication
+    jwt:
+      enabled: false
+      secret: ${JWT_SECRET}
+      
+  # CORS configuration
+  cors:
+    enabled: true
+    allowed_origins:
+      - "https://dashboard.example.com"
+      
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+
+# Prometheus metrics
+metrics:
+  enabled: true
+  port: 9090
+  path: /metrics
+  
+# Logging configuration
+logging:
+  # Log level: debug, info, warn, error
+  level: info
+  
+  # Log format: json, text
+  format: json
+  
+  # Log output: stdout, file
+  output: stdout
+  
+  # Log file (if output is file)
+  # file: /var/log/truenas-monitor/monitor.log
+  
+  # Audit logging
+  audit:
+    enabled: true
+    file: /var/log/truenas-monitor/audit.log
+
+# Performance tuning
+performance:
+  # Number of concurrent workers
+  workers: 10
+  
+  # Cache configuration
+  cache:
+    enabled: true
+    ttl: 5m
+    max_size: 1000
+    
+  # Batch size for API calls
+  batch_size: 100
+
+# Feature flags
+features:
+  # Enable experimental features
+  auto_remediation: false
+  predictive_analytics: false
+  cost_analysis: false

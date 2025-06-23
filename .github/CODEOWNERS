@@ -1,0 +1,26 @@
+# This file defines the code owners for the repository
+# These owners will be automatically requested for review when someone opens a pull request
+
+# Global owners
+* @yourusername
+
+# Go code
+/go/ @yourusername
+*.go @yourusername
+
+# Python code
+/python/ @yourusername
+*.py @yourusername
+
+# Documentation
+/docs/ @yourusername
+*.md @yourusername
+
+# CI/CD
+/.github/ @yourusername
+/deploy/ @yourusername
+
+# Security-sensitive files
+/deploy/kubernetes/rbac.yaml @yourusername @security-team
+/deploy/openshift/scc.yaml @yourusername @security-team
+**/security/ @yourusername @security-team

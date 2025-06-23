@@ -1,0 +1,36 @@
+# Python CLI Docker image
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash monitor
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python requirements
+COPY python/requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy Python package
+COPY python/ ./python/
+
+# Install the package
+RUN pip install -e ./python
+
+# Switch to non-root user
+USER monitor
+
+# Set environment
+ENV PYTHONUNBUFFERED=1
+
+# Default command
+ENTRYPOINT ["truenas-monitor"]
+CMD ["--help"]

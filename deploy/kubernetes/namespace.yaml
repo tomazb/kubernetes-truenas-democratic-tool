@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: storage-monitoring
+  labels:
+    app.kubernetes.io/name: truenas-monitor
+    app.kubernetes.io/part-of: truenas-monitor

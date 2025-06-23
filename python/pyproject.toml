@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "truenas-storage-monitor"
+version = "0.1.0"
+description = "Comprehensive monitoring tool for OpenShift/Kubernetes with TrueNAS and democratic-csi"
+readme = "README.md"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1.0",
+    "kubernetes>=28.1.0",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "rich>=13.0.0",
+    "jinja2>=3.1.0",
+    "prometheus-client>=0.18.0",
+    "asyncio>=3.4.3",
+    "aiohttp>=3.9.0",
+    "python-dateutil>=2.8.0",
+    "tabulate>=0.9.0",
+    "plotly>=5.17.0",
+    "kaleido>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.11.0",
+    "black>=23.0.0",
+    "flake8>=6.1.0",
+    "mypy>=1.5.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+    "types-requests>=2.31.0",
+    "types-pyyaml>=6.0",
+    "pytest-watch>=4.2.0",
+]
+
+[project.scripts]
+truenas-monitor = "truenas_storage_monitor.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/kubernetes-truenas-democratic-tool"
+Documentation = "https://yourusername.github.io/kubernetes-truenas-democratic-tool/"
+Issues = "https://github.com/yourusername/kubernetes-truenas-democratic-tool/issues"
+Repository = "https://github.com/yourusername/kubernetes-truenas-democratic-tool"
+
+[tool.setuptools]
+packages = ["truenas_storage_monitor"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311']
+include = '\.pyi?$'
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+exclude = [".git", "__pycache__", "build", "dist"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "e2e: End-to-end tests",
+    "security: Security tests",
+    "idempotency: Idempotency tests",
+    "slow: Slow tests",
+]
+
+[tool.coverage.run]
+source = ["truenas_storage_monitor"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 90
