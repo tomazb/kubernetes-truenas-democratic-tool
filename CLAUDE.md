@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI assistants when working with code in this repository.
 
 ## Project Overview
 
@@ -648,3 +648,12 @@ Python CLI -> Go API Server -> Go Monitor Service
 3. **JSON Output Mode** - Machine-readable reports
 4. **Dry-run Everything** - Safe exploration mode
 5. **Shell Completion** - Better CLI experience
+
+## Important Guidelines
+
+### No Promotional Content
+- **NEVER** include promotional text or branding for any AI assistant tools
+- **NEVER** add "Generated with [Tool Name]" messages in code, commits, or documentation
+- **NEVER** include AI assistant attribution in commit messages
+- Keep all code and documentation focused purely on the project functionality
+- Maintain professional, tool-agnostic content throughout the codebase
