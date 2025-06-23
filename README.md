@@ -1,5 +1,9 @@
 # Kubernetes TrueNAS Democratic Tool
 
+[![CI Pipeline](https://github.com/tomazb/kubernetes-truenas-democratic-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/tomazb/kubernetes-truenas-democratic-tool/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tomazb/kubernetes-truenas-democratic-tool)](https://goreportcard.com/report/github.com/tomazb/kubernetes-truenas-democratic-tool)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 A comprehensive monitoring and management tool for OpenShift/Kubernetes clusters using TrueNAS Scale storage via democratic-csi.
 
 ## Overview
