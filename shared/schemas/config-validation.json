@@ -1,0 +1,238 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Configuration Validation Report",
+  "description": "Schema for configuration validation results",
+  "type": "object",
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "validation_summary": {
+      "type": "object",
+      "properties": {
+        "total_checks": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "overall_status": {
+          "type": "string",
+          "enum": ["healthy", "warning", "critical"]
+        }
+      },
+      "required": ["total_checks", "passed", "failed", "warnings", "overall_status"]
+    },
+    "storage_class_validations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/storage_class_validation"
+      }
+    },
+    "csi_driver_validation": {
+      "$ref": "#/definitions/csi_driver_validation"
+    },
+    "snapshot_class_validations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/snapshot_class_validation"
+      }
+    },
+    "truenas_connection_validation": {
+      "$ref": "#/definitions/truenas_validation"
+    },
+    "best_practice_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/best_practice_check"
+      }
+    }
+  },
+  "required": ["timestamp", "validation_summary"],
+  "definitions": {
+    "storage_class_validation": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "provisioner": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["valid", "invalid", "warning"]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/validation_check"
+          }
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "provisioner", "status", "checks"]
+    },
+    "csi_driver_validation": {
+      "type": "object",
+      "properties": {
+        "driver_name": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "failed"]
+        },
+        "controller_pods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pod_status"
+          }
+        },
+        "node_pods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pod_status"
+          }
+        },
+        "csi_nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "node_name": { "type": "string" },
+              "driver_installed": { "type": "boolean" },
+              "driver_version": { "type": ["string", "null"] }
+            },
+            "required": ["node_name", "driver_installed"]
+          }
+        },
+        "rbac_permissions": {
+          "type": "object",
+          "properties": {
+            "service_account": { "type": "string" },
+            "cluster_roles": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "missing_permissions": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["driver_name", "status"]
+    },
+    "snapshot_class_validation": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "driver": { "type": "string" },
+        "deletion_policy": {
+          "type": "string",
+          "enum": ["Delete", "Retain"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["valid", "invalid", "warning"]
+        },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "driver", "status"]
+    },
+    "truenas_validation": {
+      "type": "object",
+      "properties": {
+        "host": { "type": "string" },
+        "connection_status": {
+          "type": "string",
+          "enum": ["connected", "authentication_failed", "connection_failed", "timeout"]
+        },
+        "api_version": { "type": ["string", "null"] },
+        "pools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string" },
+              "available": { "type": "boolean" }
+            },
+            "required": ["name", "status", "available"]
+          }
+        },
+        "datasets_configured": { "type": "boolean" },
+        "iscsi_configured": { "type": "boolean" },
+        "nfs_configured": { "type": "boolean" },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["host", "connection_status"]
+    },
+    "best_practice_check": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["security", "performance", "reliability", "capacity", "configuration"]
+        },
+        "check": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "warning", "not_applicable"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "description": { "type": "string" },
+        "recommendation": { "type": ["string", "null"] },
+        "documentation_url": { "type": ["string", "null"] }
+      },
+      "required": ["category", "check", "status", "severity", "description"]
+    },
+    "validation_check": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "message": { "type": "string" },
+        "details": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["name", "passed", "message"]
+    },
+    "pod_status": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "namespace": { "type": "string" },
+        "node": { "type": "string" },
+        "status": { "type": "string" },
+        "ready": { "type": "boolean" },
+        "restarts": { "type": "integer", "minimum": 0 },
+        "containers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "ready": { "type": "boolean" },
+              "image": { "type": "string" }
+            },
+            "required": ["name", "ready"]
+          }
+        }
+      },
+      "required": ["name", "namespace", "status", "ready"]
+    }
+  }
+}
