@@ -118,8 +118,24 @@ def expand_env_vars(config: Any) -> Any:
     elif isinstance(config, list):
         return [expand_env_vars(item) for item in config]
     elif isinstance(config, str):
-        # Expand ${VAR} or $VAR format
-        return os.path.expandvars(config)
+        # Handle ${VAR:-default} syntax first
+        import re
+        
+        def replace_var_with_default(match):
+            var_expr = match.group(1)
+            if ':-' in var_expr:
+                var_name, default_value = var_expr.split(':-', 1)
+                return os.environ.get(var_name, default_value)
+            else:
+                return os.environ.get(var_expr, '')
+        
+        # Replace ${VAR:-default} patterns
+        result = re.sub(r'\$\{([^}]+)\}', replace_var_with_default, config)
+        
+        # Also handle standard $VAR format
+        result = os.path.expandvars(result)
+        
+        return result
     else:
         return config
 
@@ -133,6 +149,13 @@ def validate_config(config: Dict[str, Any]) -> None:
     Raises:
         ConfigurationError: If configuration is invalid
     """
+    # Check if config is None or empty
+    if config is None:
+        raise ConfigurationError("Configuration is empty or invalid")
+    
+    if not isinstance(config, dict):
+        raise ConfigurationError("Configuration must be a dictionary")
+    
     # Check required sections
     required_sections = ["openshift", "monitoring"]
     for section in required_sections:

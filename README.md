@@ -24,6 +24,12 @@ This tool analyzes and monitors the integration between OpenShift, TrueNAS Scale
   - Calculate snapshot overhead percentages
   - Track capacity trends and fragmentation
   - Generate optimization recommendations
+- **Prometheus Metrics** - Export 15+ metrics for monitoring and alerting
+  - Snapshot metrics (count, size, age, orphaned)
+  - Storage pool metrics (size, utilization, health)
+  - Volume metrics (PV/PVC counts, orphaned resources)
+  - Efficiency metrics (thin provisioning, compression, overhead)
+  - System health metrics (connectivity, CSI driver status)
 - **Multi-Format Output** - Table, JSON, and YAML formats for all commands
 - **Security-First Design** - Zero-trust architecture with comprehensive audit logging
 - **Idempotent Operations** - All operations are safe to retry
@@ -105,7 +111,10 @@ truenas-monitor report --output report.html
 truenas-monitor validate
 
 # Start monitoring with Prometheus metrics
-truenas-monitor monitor --metrics-port 8080
+truenas-monitor monitor --metrics-port 9090
+
+# Monitor specific namespace
+truenas-monitor monitor --namespace storage-system
 ```
 
 ## 📚 Documentation & Deployment
@@ -142,8 +151,18 @@ truenas:
   password: ${TRUENAS_PASSWORD}  # Use environment variable
 
 monitoring:
-  orphan_threshold: 24h
-  snapshot_retention: 30d
+  interval: 300  # Check every 5 minutes
+  thresholds:
+    orphaned_pv_age_hours: 24
+    pending_pvc_minutes: 60
+    snapshot_age_days: 30
+    pool_usage_percent: 80
+    snapshot_size_gb: 100
+
+metrics:
+  enabled: true
+  port: 9090
+  path: /metrics
   
 alerts:
   slack:
@@ -182,6 +201,9 @@ make container-build-all
 - [Architecture](docs/ARCHITECTURE.md) - System design and components
 - [PRD](docs/PRD.md) - Product requirements and roadmap
 - [CLAUDE.md](CLAUDE.md) - Development guidelines
+- [Prometheus Metrics](docs/PROMETHEUS_METRICS.md) - Complete metrics reference
+- [Python CLI Guide](python/README.md) - Detailed CLI documentation
+- [Demo & Examples](python/DEMO.md) - Usage examples and best practices
 - [API Reference](https://yourusername.github.io/kubernetes-truenas-democratic-tool/)
 
 ## Security

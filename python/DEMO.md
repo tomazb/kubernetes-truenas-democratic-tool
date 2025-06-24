@@ -1,6 +1,6 @@
-# TrueNAS Storage Monitor - Demo Guide
+# TrueNAS Storage Monitor - Demo & Usage Guide
 
-This guide demonstrates the snapshot management features of the TrueNAS Storage Monitor.
+This comprehensive guide demonstrates all features of the TrueNAS Storage Monitor, including snapshot management, orphaned resource detection, storage analytics, and Prometheus metrics integration.
 
 ## Prerequisites
 
@@ -23,11 +23,18 @@ truenas:
   verify_ssl: false
 
 monitoring:
-  interval: 60
+  interval: 300  # 5 minutes
   thresholds:
     orphaned_pv_age_hours: 24
     pending_pvc_minutes: 60
     snapshot_age_days: 30
+    pool_usage_percent: 80
+    snapshot_size_gb: 100
+
+metrics:
+  enabled: true
+  port: 9090
+  path: /metrics
 ```
 
 ## Snapshot Management Commands
@@ -144,8 +151,11 @@ truenas-monitor monitor
 # Custom interval
 truenas-monitor monitor --interval 300
 
-# Expose Prometheus metrics
+# Expose Prometheus metrics on custom port
 truenas-monitor monitor --metrics-port 8080
+
+# Access metrics endpoint
+curl http://localhost:9090/metrics | grep truenas_
 ```
 
 ## Example Outputs
@@ -264,6 +274,117 @@ Run commands with debug logging:
 truenas-monitor --log-level debug snapshots --health
 ```
 
+## Prometheus Metrics
+
+The tool exports comprehensive metrics for monitoring:
+
+### Available Metrics
+
+```bash
+# View all metrics
+curl http://localhost:9090/metrics
+
+# Key metrics to monitor:
+truenas_snapshots_total                    # Total snapshots by system
+truenas_snapshots_size_bytes               # Snapshot storage usage
+truenas_orphaned_snapshots_total           # Orphaned snapshots count
+truenas_storage_pool_utilization_percent   # Pool usage percentage
+truenas_thin_provisioning_ratio            # Overprovisioning ratio
+truenas_system_connectivity                # System health status
+truenas_monitoring_duration_seconds        # Operation performance
+```
+
+### Grafana Dashboard Example
+
+```json
+{
+  "panels": [
+    {
+      "title": "Storage Pool Usage",
+      "expr": "truenas_storage_pool_utilization_percent"
+    },
+    {
+      "title": "Snapshot Growth Rate",
+      "expr": "rate(truenas_snapshots_size_bytes[1h])"
+    },
+    {
+      "title": "Orphaned Resources",
+      "expr": "truenas_orphaned_pvs_total + truenas_orphaned_snapshots_total"
+    }
+  ]
+}
+```
+
+## Configuration Validation
+
+Always validate your configuration before starting monitoring:
+
+```bash
+# Basic validation
+truenas-monitor validate
+
+# Verbose validation with all checks
+truenas-monitor validate --verbose
+
+# Output validation results as JSON
+truenas-monitor validate --format json
+```
+
+**Validation checks:**
+- Configuration file syntax
+- Kubernetes cluster connectivity
+- TrueNAS API accessibility
+- CSI driver health
+- RBAC permissions
+- Namespace existence
+
+## Performance Optimization
+
+### CLI Performance
+
+All commands are optimized for speed:
+- `validate`: < 10 seconds
+- `orphans`: < 5 seconds  
+- `snapshots`: < 5 seconds
+- `analyze`: < 10 seconds
+
+### Monitoring Performance
+
+```bash
+# Test performance with timing
+time truenas-monitor orphans --format json
+
+# Run with performance metrics
+truenas-monitor monitor --once --log-level debug
+```
+
+## Testing
+
+### Unit Tests
+```bash
+# Run unit tests with coverage
+cd python/
+python run_unit_tests.py
+
+# Quick unit tests
+python run_unit_tests.py --quick
+
+# Test specific module
+python run_unit_tests.py --module config
+```
+
+### Integration Tests
+```bash
+# Run all integration tests
+python run_integration_tests.py
+
+# Run smoke tests only
+python run_integration_tests.py --smoke
+
+# Test specific category
+python run_integration_tests.py --category cli
+```
+
 ## Best Practices
 
 1. **Regular Health Checks**: Run `snapshots --health` daily
@@ -271,3 +392,6 @@ truenas-monitor --log-level debug snapshots --health
 3. **Retention Policy**: Keep snapshots under 30 days
 4. **Size Monitoring**: Alert when total size exceeds threshold
 5. **Automation**: Integrate checks into CI/CD pipelines
+6. **Metrics Monitoring**: Set up Prometheus alerts for key metrics
+7. **Configuration Validation**: Always validate config changes
+8. **Performance Testing**: Monitor command execution times

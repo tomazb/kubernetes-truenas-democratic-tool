@@ -1,10 +1,12 @@
 """Main monitoring module for TrueNAS Storage Monitor."""
 
 import logging
+import time
 from typing import Dict, Any, Optional
 
 from .k8s_client import K8sClient, K8sConfig
 from .truenas_client import TrueNASClient, TrueNASConfig
+from .metrics import TrueNASMetrics, timed_operation
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,20 @@ class Monitor:
         self.config = config
         self.k8s_client: Optional[K8sClient] = None
         self.truenas_client: Optional[TrueNASClient] = None
+        
+        # Initialize metrics with separate registry to avoid conflicts
+        from prometheus_client import CollectorRegistry
+        metrics_registry = CollectorRegistry()
+        self.metrics = TrueNASMetrics(registry=metrics_registry)
+        
+        # Start metrics server if enabled
+        metrics_config = config.get('metrics', {})
+        if metrics_config.get('enabled', True):
+            port = metrics_config.get('port', 9090)
+            try:
+                self.metrics.start_metrics_server(port)
+            except Exception as e:
+                logger.warning(f"Failed to start metrics server: {e}")
         
         # Initialize K8s client
         try:
@@ -70,6 +86,11 @@ class Monitor:
         
         if not self.k8s_client:
             logger.warning("Kubernetes client not available for orphan check")
+            # Still update metrics even if we can't check
+            try:
+                self.metrics.update_volume_metrics(result)
+            except Exception as e:
+                logger.warning(f"Failed to update volume metrics: {e}")
             return result
         
         try:
@@ -99,6 +120,12 @@ class Monitor:
             
         except Exception as e:
             logger.error(f"Error checking orphaned resources: {e}")
+        
+        # Update metrics
+        try:
+            self.metrics.update_volume_metrics(result)
+        except Exception as e:
+            logger.warning(f"Failed to update volume metrics: {e}")
             
         return result
     
@@ -131,6 +158,12 @@ class Monitor:
             
         except Exception as e:
             logger.error(f"Error checking storage usage: {e}")
+        
+        # Update metrics
+        try:
+            self.metrics.update_storage_metrics(result)
+        except Exception as e:
+            logger.warning(f"Failed to update storage metrics: {e}")
             
         return result
     
@@ -159,6 +192,12 @@ class Monitor:
             
         except Exception as e:
             logger.error(f"Error checking CSI driver health: {e}")
+        
+        # Update metrics
+        try:
+            self.metrics.update_csi_metrics(result)
+        except Exception as e:
+            logger.warning(f"Failed to update CSI metrics: {e}")
             
         return result
     
@@ -264,6 +303,13 @@ class Monitor:
                 "message": f"Failed to check snapshot health: {str(e)}"
             })
         
+        # Update metrics
+        try:
+            self.metrics.update_snapshot_metrics(result)
+            self.metrics.update_alert_metrics(result.get('alerts', []))
+        except Exception as e:
+            logger.warning(f"Failed to update snapshot metrics: {e}")
+        
         return result
     
     def analyze_storage_efficiency(self) -> Dict[str, Any]:
@@ -354,6 +400,163 @@ class Monitor:
             
         except Exception as e:
             logger.error(f"Error analyzing storage efficiency: {e}")
+        
+        # Update metrics
+        try:
+            self.metrics.update_efficiency_metrics(result)
+        except Exception as e:
+            logger.warning(f"Failed to update efficiency metrics: {e}")
+        
+        return result
+    
+    def validate_configuration(self) -> Dict[str, Any]:
+        """Validate the current configuration and test connections.
+        
+        Returns:
+            Dictionary with validation results
+        """
+        result = {
+            "configuration": "valid",
+            "k8s_connectivity": False,
+            "truenas_connectivity": False,
+            "storage_classes": [],
+            "errors": []
+        }
+        
+        try:
+            # Test K8s connectivity
+            if self.k8s_client:
+                result["k8s_connectivity"] = self.k8s_client.test_connection()
+                if result["k8s_connectivity"]:
+                    try:
+                        result["storage_classes"] = [sc.name for sc in self.k8s_client.get_storage_classes()]
+                    except Exception as e:
+                        result["errors"].append(f"Failed to get storage classes: {e}")
+                else:
+                    result["errors"].append("Kubernetes connectivity test failed")
+            else:
+                result["errors"].append("Kubernetes client not initialized")
+            
+            # Test TrueNAS connectivity
+            if self.truenas_client:
+                result["truenas_connectivity"] = self.truenas_client.test_connection()
+                if not result["truenas_connectivity"]:
+                    result["errors"].append("TrueNAS connectivity test failed")
+            else:
+                result["errors"].append("TrueNAS client not configured")
+                
+        except Exception as e:
+            result["errors"].append(f"Configuration validation error: {e}")
+            result["configuration"] = "invalid"
+        
+        # Update metrics
+        try:
+            self.metrics.update_system_metrics(result)
+        except Exception as e:
+            logger.warning(f"Failed to update system metrics: {e}")
+        
+        return result
+    
+    def run_health_check(self) -> Dict[str, Any]:
+        """Run a comprehensive health check.
+        
+        Returns:
+            Dictionary with health check results
+        """
+        result = {
+            "configuration": self.validate_configuration(),
+            "orphaned_pvs": self.check_orphaned_resources(),
+            "storage_usage": self.check_storage_usage(),
+            "csi_health": self.check_csi_health(),
+            "snapshot_health": self.check_snapshot_health()
+        }
+        
+        return result
+    
+    def get_monitoring_summary(self) -> Dict[str, Any]:
+        """Get a summary of monitoring status.
+        
+        Returns:
+            Dictionary with monitoring summary
+        """
+        result = {
+            "resources": {
+                "k8s_connected": self.k8s_client is not None and self.k8s_client.test_connection() if self.k8s_client else False,
+                "truenas_connected": self.truenas_client is not None and self.truenas_client.test_connection() if self.truenas_client else False
+            },
+            "health": "unknown"
+        }
+        
+        try:
+            # Get basic resource counts
+            if self.k8s_client and result["resources"]["k8s_connected"]:
+                pvs = self.k8s_client.get_persistent_volumes()
+                pvcs = self.k8s_client.get_persistent_volume_claims()
+                result["resources"]["persistent_volumes"] = len(pvs)
+                result["resources"]["persistent_volume_claims"] = len(pvcs)
+            
+            if self.truenas_client and result["resources"]["truenas_connected"]:
+                pools = self.truenas_client.get_pools()
+                result["resources"]["storage_pools"] = len(pools)
+            
+            # Determine overall health
+            if result["resources"]["k8s_connected"] and result["resources"]["truenas_connected"]:
+                result["health"] = "healthy"
+            elif result["resources"]["k8s_connected"] or result["resources"]["truenas_connected"]:
+                result["health"] = "partial"
+            else:
+                result["health"] = "unhealthy"
+                
+        except Exception as e:
+            logger.error(f"Error getting monitoring summary: {e}")
+            result["health"] = "error"
+            result["error"] = str(e)
+        
+        return result
+    
+    def check_orphaned_pvs(self) -> Dict[str, Any]:
+        """Check for orphaned PVs specifically.
+        
+        Returns:
+            Dictionary with orphaned PV information
+        """
+        result = {"orphaned_pvs": []}
+        
+        if not self.k8s_client:
+            result["error"] = "Kubernetes client not available"
+            return result
+        
+        try:
+            orphaned = self.k8s_client.find_orphaned_pvs()
+            result["orphaned_pvs"] = [{"name": pv.name, "status": pv.status} for pv in orphaned]
+        except Exception as e:
+            result["error"] = f"Failed to check orphaned PVs: {e}"
+        
+        return result
+    
+    def check_orphaned_volumes(self) -> Dict[str, Any]:
+        """Check for orphaned volumes on TrueNAS.
+        
+        Returns:
+            Dictionary with orphaned volume information
+        """
+        result = {"orphaned_volumes": []}
+        
+        if not self.truenas_client:
+            result["error"] = "TrueNAS client not available"
+            return result
+        
+        try:
+            # Get active volumes from K8s if available
+            active_volumes = []
+            if self.k8s_client:
+                pvs = self.k8s_client.get_persistent_volumes()
+                active_volumes = [pv.name for pv in pvs]
+            
+            orphaned = self.truenas_client.find_orphaned_volumes(active_volumes)
+            result["orphaned_volumes"] = [{"name": vol.name, "path": vol.path} for vol in orphaned]
+        except Exception as e:
+            result["error"] = f"Failed to check orphaned volumes: {e}"
         
         return result
     

@@ -373,6 +373,7 @@ def validate(ctx: click.Context) -> None:
     # Check 2: Kubernetes connection
     k8s_status = False
     k8s_msg = ""
+    k8s_client = None
     try:
         k8s_config = K8sConfig(
             namespace=config.get("openshift", {}).get("namespace"),
@@ -381,43 +382,52 @@ def validate(ctx: click.Context) -> None:
         )
         k8s_client = K8sClient(k8s_config)
         
-        # Try to list namespaces as a connectivity test
-        namespaces = k8s_client.core_v1.list_namespace()
-        k8s_status = True
-        k8s_msg = f"Connected to cluster with {len(namespaces.items)} namespaces"
+        # Use the test_connection method with timeout
+        k8s_status = k8s_client.test_connection()
+        if k8s_status:
+            k8s_msg = "Successfully connected to Kubernetes cluster"
+        else:
+            k8s_msg = "Unable to connect to Kubernetes cluster"
     except Exception as e:
-        k8s_msg = str(e)
+        k8s_msg = f"Connection error: {str(e)[:100]}..."  # Truncate long error messages
     
     checks.append(("Kubernetes connection", k8s_status, k8s_msg))
     
     # Check 3: Democratic-CSI namespace
     csi_namespace_status = False
     csi_namespace_msg = ""
-    if k8s_status:
+    if k8s_status and k8s_client:
         try:
             namespace = config.get("openshift", {}).get("namespace", "democratic-csi")
+            # Quick namespace check - just try to get it
             ns = k8s_client.core_v1.read_namespace(namespace)
             csi_namespace_status = True
             csi_namespace_msg = f"Namespace '{namespace}' exists"
-        except Exception:
-            csi_namespace_msg = f"Namespace '{namespace}' not found"
+        except Exception as e:
+            if "not found" in str(e).lower():
+                csi_namespace_msg = f"Namespace '{namespace}' not found"
+            else:
+                csi_namespace_msg = f"Cannot check namespace: {str(e)[:50]}..."
     else:
         csi_namespace_msg = "Cannot check (Kubernetes connection failed)"
     
     checks.append(("Democratic-CSI namespace", csi_namespace_status, csi_namespace_msg))
     
-    # Check 4: CSI driver health
+    # Check 4: CSI driver health (quick check)
     csi_driver_status = False
     csi_driver_msg = ""
-    if k8s_status:
+    if k8s_status and k8s_client:
         try:
-            health = k8s_client.check_csi_driver_health()
-            csi_driver_status = health["healthy"]
-            csi_driver_msg = f"{health['running_pods']}/{health['total_pods']} pods running"
-            if not csi_driver_status and health["unhealthy_pods"]:
-                csi_driver_msg += f" - Issues: {', '.join(health['unhealthy_pods'])}"
+            # Quick check - just see if we can list pods in the namespace
+            namespace = config.get("openshift", {}).get("namespace", "democratic-csi")
+            pods = k8s_client.core_v1.list_namespaced_pod(namespace, limit=5)  # Limit for speed
+            pod_count = len(pods.items)
+            running_count = sum(1 for pod in pods.items if pod.status.phase == "Running")
+            
+            csi_driver_status = running_count > 0
+            csi_driver_msg = f"Found {running_count}/{pod_count} running pods in namespace"
         except Exception as e:
-            csi_driver_msg = f"Cannot check driver health: {str(e)}"
+            csi_driver_msg = f"Cannot check CSI driver: {str(e)[:50]}..."
     else:
         csi_driver_msg = "Cannot check (Kubernetes connection failed)"
     
@@ -431,12 +441,14 @@ def validate(ctx: click.Context) -> None:
             truenas_config = _create_truenas_config(config["truenas"])
             truenas_client = TrueNASClient(truenas_config)
             
-            # Try to get pools as a connectivity test
-            pools = truenas_client.get_pools()
-            truenas_status = True
-            truenas_msg = f"Connected, {len(pools)} pool(s) found"
+            # Use the test_connection method with timeout
+            truenas_status = truenas_client.test_connection()
+            if truenas_status:
+                truenas_msg = "Successfully connected to TrueNAS API"
+            else:
+                truenas_msg = "Unable to connect to TrueNAS API"
         except Exception as e:
-            truenas_msg = str(e)
+            truenas_msg = f"Connection error: {str(e)[:100]}..."
     else:
         truenas_msg = "TrueNAS not configured"
     

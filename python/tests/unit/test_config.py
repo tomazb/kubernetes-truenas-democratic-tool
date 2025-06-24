@@ -10,7 +10,7 @@ from truenas_storage_monitor.config import load_config, ConfigurationError
 
 def test_load_config_missing_file():
     """Test loading config when file doesn't exist."""
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ConfigurationError):
         load_config("nonexistent.yaml")
 
 
@@ -43,8 +43,8 @@ def test_load_config_empty_file():
         f.write("")
         f.flush()
         
-        config = load_config(f.name)
-        assert config == {}
+        with pytest.raises(ConfigurationError):
+            load_config(f.name)
 
 
 def test_load_config_with_env_vars():
@@ -55,7 +55,9 @@ openshift:
 monitoring:
   interval: 60
 truenas:
-  password: ${TRUENAS_PASSWORD}
+  url: https://truenas.example.com
+  username: admin
+  password: ${TRUENAS_PASSWORD:-defaultpass}
 """
     
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:

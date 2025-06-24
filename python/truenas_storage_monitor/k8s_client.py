@@ -111,6 +111,19 @@ class K8sClient:
         self.core_v1 = k8s_client.CoreV1Api()
         self.storage_v1 = k8s_client.StorageV1Api()
         self.custom_objects = k8s_client.CustomObjectsApi()
+    
+    def test_connection(self) -> bool:
+        """Test connection to Kubernetes cluster.
+        
+        Returns:
+            True if connection successful, False otherwise
+        """
+        try:
+            # Quick connectivity test - just get version info
+            version = self.core_v1.get_api_resources()
+            return True
+        except Exception:
+            return False
         
     def get_persistent_volumes(self) -> List[PersistentVolumeInfo]:
         """Get all PersistentVolumes managed by the CSI driver.
