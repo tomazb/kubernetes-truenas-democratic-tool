@@ -46,19 +46,35 @@ The tool uses a hybrid Go/Python architecture:
 
 ### Installation
 
+#### Quick Start (Recommended)
+
+```bash
+git clone https://github.com/tomazb/kubernetes-truenas-democratic-tool.git
+cd kubernetes-truenas-democratic-tool
+./quick-start.sh
+```
+
 #### CLI Tool (Python)
 
 ```bash
+# From source
+cd python/
+pip install -r requirements.txt
+pip install -e .
+
+# Or from PyPI (when available)
 pip install truenas-storage-monitor
 ```
 
 #### Container Deployment
 
 ```bash
-# Deploy monitoring stack
-helm install truenas-monitor ./charts/truenas-monitor \
-  --namespace storage-monitoring \
-  --create-namespace
+# Build and run locally
+podman build -t truenas-monitor -f container/Containerfile.cli .
+podman run -it --rm \
+  -v ~/.kube:/root/.kube:ro \
+  -v ./config.yaml:/app/config.yaml:ro \
+  truenas-monitor:latest validate
 ```
 
 ### Basic Usage
@@ -90,6 +106,25 @@ truenas-monitor validate
 
 # Start monitoring with Prometheus metrics
 truenas-monitor monitor --metrics-port 8080
+```
+
+## 📚 Documentation & Deployment
+
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete deployment and testing guide
+- **[python/DEMO.md](python/DEMO.md)** - Usage examples and command reference
+- **[README_DEPLOYMENT.md](README_DEPLOYMENT.md)** - Quick deployment overview
+
+### 🚀 Quick Test & Validation
+
+```bash
+# Interactive setup (recommended for first-time users)
+./quick-start.sh
+
+# Automated testing (CI/CD environments)
+./test-ci.sh
+
+# Validate existing deployment
+./validate-deployment.sh
 ```
 
 ## Configuration
