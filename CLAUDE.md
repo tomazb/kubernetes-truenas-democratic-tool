@@ -2,6 +2,37 @@
 
 This file provides guidance to AI assistants when working with code in this repository.
 
+## AI Assistant Guidelines
+
+### Use of Subagents
+AI assistants should leverage subagents (Task tool) for complex operations whenever possible to improve efficiency and accuracy:
+
+**When to Use Subagents:**
+- **File Search Operations** - When searching for specific functions, classes, or patterns across multiple files
+- **Code Analysis** - When analyzing code structure, dependencies, or architectural patterns  
+- **Documentation Research** - When looking up specific configuration options, API references, or implementation details
+- **Multi-step Investigations** - When a task requires exploring multiple codepaths or components
+- **Performance Optimization** - When multiple parallel searches or analyses can be done simultaneously
+
+**When NOT to Use Subagents:**
+- **Direct File Operations** - Reading/writing specific known file paths
+- **Simple Single-file Tasks** - When working within a specific file that's already identified
+- **Sequential Dependencies** - When each step depends on the result of the previous step
+- **User Interaction Required** - When clarification or approval is needed between steps
+
+**Best Practices:**
+- Launch multiple subagents concurrently when tasks can be parallelized
+- Provide detailed, specific instructions to subagents including expected output format
+- Use subagents for research and discovery, then synthesize results directly
+- Clearly specify what information the subagent should return in its final message
+
+**Example Usage:**
+```
+Task 1: "Search for all snapshot-related methods in the codebase and return a list with file locations and method signatures"
+Task 2: "Analyze the TrueNAS client error handling patterns and return common error types and their handling approaches"  
+Task 3: "Find all CLI commands that involve storage operations and return their command structure and options"
+```
+
 ## Project Repository
 
 **GitHub:** https://github.com/tomazb/kubernetes-truenas-democratic-tool

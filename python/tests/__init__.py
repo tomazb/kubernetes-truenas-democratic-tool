@@ -1,1 +1,1 @@
-"""Test package for TrueNAS Storage Monitor."""
+"""Tests for TrueNAS Storage Monitor."""

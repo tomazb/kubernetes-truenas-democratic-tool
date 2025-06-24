@@ -1,0 +1,26 @@
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+  
+  comments:
+    min-spaces-from-content: 1
+  
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    check-keys: false
+
+ignore: |
+  .github/
+  venv/
+  htmlcov/
+  .pytest_cache/
+  *.egg-info/

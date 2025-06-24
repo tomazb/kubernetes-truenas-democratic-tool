@@ -13,9 +13,18 @@ This tool analyzes and monitors the integration between OpenShift, TrueNAS Scale
 ### Key Features
 
 - **Orphaned Resource Detection** - Identify PVs, volumes, and snapshots without corresponding resources
-- **Snapshot Management** - Track snapshot growth, retention, and storage consumption
+- **Advanced Snapshot Management** 
+  - Cross-system snapshot health monitoring
+  - Orphaned snapshot detection in K8s and TrueNAS
+  - Usage analysis with size and age metrics
+  - Smart recommendations for optimization
 - **Configuration Validation** - Verify StorageClass, CSI driver, and RBAC configurations
-- **Storage Analytics** - Monitor thin provisioning efficiency and capacity trends
+- **Storage Analytics** 
+  - Monitor thin provisioning efficiency
+  - Calculate snapshot overhead percentages
+  - Track capacity trends and fragmentation
+  - Generate optimization recommendations
+- **Multi-Format Output** - Table, JSON, and YAML formats for all commands
 - **Security-First Design** - Zero-trust architecture with comprehensive audit logging
 - **Idempotent Operations** - All operations are safe to retry
 
@@ -59,13 +68,28 @@ helm install truenas-monitor ./charts/truenas-monitor \
 truenas-monitor orphans
 
 # Analyze storage usage
-truenas-monitor analyze --trend 30d
+truenas-monitor analyze
+
+# Snapshot health monitoring
+truenas-monitor snapshots --health
+
+# Find orphaned snapshots
+truenas-monitor snapshots --orphaned
+
+# Analyze snapshot usage
+truenas-monitor snapshots --analysis
+
+# List old snapshots
+truenas-monitor snapshots --age-days 30
 
 # Generate HTML report
 truenas-monitor report --output report.html
 
 # Validate configuration
 truenas-monitor validate
+
+# Start monitoring with Prometheus metrics
+truenas-monitor monitor --metrics-port 8080
 ```
 
 ## Configuration

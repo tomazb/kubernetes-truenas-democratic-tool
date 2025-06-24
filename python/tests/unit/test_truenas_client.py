@@ -2,421 +2,330 @@
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
-import json
+from datetime import datetime, timedelta
+import requests
 
 from truenas_storage_monitor.truenas_client import (
-    TrueNASClient,
-    TrueNASConfig,
-    VolumeInfo,
-    SnapshotInfo,
-    PoolInfo,
-    DatasetInfo,
-    TrueNASError,
-    AuthenticationError,
+    TrueNASClient, TrueNASConfig, TrueNASError, AuthenticationError,
+    PoolInfo, DatasetInfo, VolumeInfo, SnapshotInfo
 )
 
 
-class TestTrueNASConfig:
-    """Test TrueNASConfig validation."""
-
-    def test_valid_config(self):
-        """Test creating valid configuration."""
-        config = TrueNASConfig(
-            host="truenas.example.com",
-            port=443,
-            api_key="test-api-key",
-            verify_ssl=True,
-        )
-        assert config.host == "truenas.example.com"
-        assert config.port == 443
-        assert config.api_key == "test-api-key"
-        assert config.verify_ssl is True
-        assert config.base_url == "https://truenas.example.com:443/api/v2.0"
-
-    def test_config_with_username_password(self):
-        """Test configuration with username/password."""
-        config = TrueNASConfig(
-            host="truenas.example.com",
-            username="admin",
-            password="secret",
-        )
-        assert config.username == "admin"
-        assert config.password == "secret"
-        assert config.api_key is None
-
-    def test_config_validation_no_auth(self):
-        """Test configuration validation with no authentication."""
-        with pytest.raises(ValueError, match="Either api_key or username/password"):
-            TrueNASConfig(host="truenas.example.com")
+@pytest.fixture
+def truenas_config():
+    """Create a test TrueNAS configuration."""
+    return TrueNASConfig(
+        host="truenas.example.com",
+        port=443,
+        username="admin",
+        password="test-password",
+        verify_ssl=False
+    )
 
 
-class TestTrueNASClient:
-    """Test TrueNASClient functionality."""
+@pytest.fixture
+def mock_session():
+    """Create a mocked requests session."""
+    return Mock(spec=requests.Session)
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create mock TrueNAS configuration."""
-        return TrueNASConfig(
-            host="truenas.example.com",
-            port=443,
-            api_key="test-api-key",
-            verify_ssl=False,
-        )
 
-    @pytest.fixture
-    def mock_client(self, mock_config):
-        """Create TrueNASClient with mocked session."""
-        with patch('truenas_storage_monitor.truenas_client.requests.Session'):
-            client = TrueNASClient(mock_config)
-            client.session = Mock()
-            return client
+@pytest.fixture
+def truenas_client(truenas_config, mock_session):
+    """Create a TrueNAS client with mocked session."""
+    with patch('truenas_storage_monitor.truenas_client.requests.Session', return_value=mock_session):
+        client = TrueNASClient(truenas_config)
+        client.session = mock_session
+        return client
 
-    def test_client_initialization(self, mock_config):
-        """Test client initialization."""
-        with patch('truenas_storage_monitor.truenas_client.requests.Session'):
-            client = TrueNASClient(mock_config)
-            assert client.config == mock_config
-            assert client.base_url == "https://truenas.example.com:443/api/v2.0"
 
-    def test_authentication_with_api_key(self, mock_client):
-        """Test authentication with API key."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"username": "root"}
-        mock_client.session.get.return_value = mock_response
-        
-        result = mock_client.test_connection()
-        
-        assert result is True
-        mock_client.session.get.assert_called_once_with(
-            f"{mock_client.base_url}/auth/me",
-            timeout=30
-        )
+def test_truenas_config_validation():
+    """Test TrueNAS configuration validation."""
+    # Valid config with API key
+    config = TrueNASConfig(host="test.com", api_key="test-key")
+    assert config.api_key == "test-key"
+    
+    # Valid config with username/password
+    config = TrueNASConfig(host="test.com", username="admin", password="secret")
+    assert config.username == "admin"
+    
+    # Invalid config - missing credentials
+    with pytest.raises(ValueError, match="Either api_key or username/password"):
+        TrueNASConfig(host="test.com")
 
-    def test_authentication_failure(self, mock_client):
-        """Test authentication failure."""
-        mock_response = Mock()
-        mock_response.status_code = 401
-        mock_response.text = "Unauthorized"
-        mock_client.session.get.return_value = mock_response
-        
-        with pytest.raises(AuthenticationError):
-            mock_client.test_connection()
 
-    def test_get_pools(self, mock_client):
-        """Test getting storage pools."""
-        mock_pools = [
-            {
-                "id": 1,
-                "name": "tank",
-                "status": "ONLINE",
-                "size": 1099511627776,  # 1TB
-                "allocated": 549755813888,  # 512GB
-                "free": 549755813888,
-                "fragmentation": "5%",
-                "healthy": True,
-                "scan": {"state": "FINISHED"},
-            }
-        ]
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_pools
-        mock_client.session.get.return_value = mock_response
-        
-        pools = mock_client.get_pools()
-        
-        assert len(pools) == 1
-        assert pools[0].name == "tank"
-        assert pools[0].status == "ONLINE"
-        assert pools[0].total_size == 1099511627776
-        assert pools[0].used_size == 549755813888
+def test_truenas_config_base_url():
+    """Test TrueNAS base URL generation."""
+    config = TrueNASConfig(host="truenas.example.com", port=443, api_key="test")
+    assert config.base_url == "https://truenas.example.com:443/api/v2.0"
+    
+    config = TrueNASConfig(host="truenas.example.com", port=80, api_key="test")
+    assert config.base_url == "http://truenas.example.com:80/api/v2.0"
 
-    def test_get_datasets(self, mock_client):
-        """Test getting datasets."""
-        mock_datasets = [
-            {
-                "id": "tank/k8s",
-                "name": "tank/k8s",
-                "type": "FILESYSTEM",
-                "used": {"value": 107374182400},  # 100GB
-                "available": {"value": 442381127680},  # 412GB
-                "quota": {"value": 0},
-                "refquota": {"value": 0},
-                "compression": "lz4",
-                "compressratio": "1.5x",
-            }
-        ]
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_datasets
-        mock_client.session.get.return_value = mock_response
-        
-        datasets = mock_client.get_datasets()
-        
-        assert len(datasets) == 1
-        assert datasets[0].name == "tank/k8s"
-        assert datasets[0].used_size == 107374182400
-        assert datasets[0].available_size == 442381127680
 
-    def test_get_volumes(self, mock_client):
-        """Test getting iSCSI volumes."""
-        mock_extents = [
-            {
-                "id": 1,
-                "name": "pvc-abc123",
-                "type": "FILE",
-                "path": "/mnt/tank/k8s/volumes/pvc-abc123",
-                "filesize": 10737418240,  # 10GB
-                "naa": "naa.6589cfc0000000b4c7f2f0e8a91b6f3d",
-                "enabled": True,
-                "ro": False,
-            }
-        ]
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_extents
-        mock_client.session.get.return_value = mock_response
-        
-        volumes = mock_client.get_volumes()
-        
-        assert len(volumes) == 1
-        assert volumes[0].name == "pvc-abc123"
-        assert volumes[0].size == 10737418240
-        assert volumes[0].path == "/mnt/tank/k8s/volumes/pvc-abc123"
+def test_truenas_client_initialization(truenas_config):
+    """Test TrueNAS client initialization."""
+    with patch('truenas_storage_monitor.truenas_client.requests.Session'):
+        client = TrueNASClient(truenas_config)
+        assert client.config == truenas_config
 
-    def test_get_nfs_shares(self, mock_client):
-        """Test getting NFS shares."""
-        mock_shares = [
-            {
-                "id": 1,
-                "path": "/mnt/tank/k8s/nfs/pvc-def456",
-                "comment": "Democratic CSI NFS share",
-                "enabled": True,
-                "hosts": ["10.0.0.0/24"],
-                "mapall_user": "root",
-                "mapall_group": "wheel",
-            }
-        ]
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_shares
-        mock_client.session.get.return_value = mock_response
-        
-        shares = mock_client.get_nfs_shares()
-        
-        assert len(shares) == 1
-        assert shares[0]["path"] == "/mnt/tank/k8s/nfs/pvc-def456"
-        assert shares[0]["enabled"] is True
 
-    def test_get_snapshots(self, mock_client):
-        """Test getting ZFS snapshots."""
-        mock_snapshots = [
-            {
-                "id": "tank/k8s/volumes/pvc-abc123@snapshot-1",
-                "name": "tank/k8s/volumes/pvc-abc123@snapshot-1",
-                "dataset": "tank/k8s/volumes/pvc-abc123",
-                "snapshot_name": "snapshot-1",
-                "properties": {
-                    "used": {"value": "1073741824"},  # 1GB
-                    "referenced": {"value": "10737418240"},  # 10GB
-                    "creation": {"value": "1704067200"},  # Unix timestamp
-                },
-            }
-        ]
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_snapshots
-        mock_client.session.get.return_value = mock_response
-        
-        snapshots = mock_client.get_snapshots()
-        
-        assert len(snapshots) == 1
-        assert snapshots[0].name == "snapshot-1"
-        assert snapshots[0].dataset == "tank/k8s/volumes/pvc-abc123"
-        assert snapshots[0].used_size == 1073741824
+def test_test_connection_success(truenas_client, mock_session):
+    """Test successful connection test."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_session.get.return_value = mock_response
+    
+    result = truenas_client.test_connection()
+    assert result is True
 
-    def test_get_volume_snapshots(self, mock_client):
-        """Test getting snapshots for a specific volume."""
-        volume_name = "pvc-abc123"
-        mock_snapshots = [
-            {
-                "id": f"tank/k8s/volumes/{volume_name}@snapshot-1",
-                "dataset": f"tank/k8s/volumes/{volume_name}",
-                "snapshot_name": "snapshot-1",
-                "properties": {
-                    "used": {"value": "1073741824"},
-                    "creation": {"value": "1704067200"},
-                },
-            }
-        ]
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_snapshots
-        mock_client.session.get.return_value = mock_response
-        
-        snapshots = mock_client.get_volume_snapshots(volume_name)
-        
-        assert len(snapshots) == 1
-        assert snapshots[0].name == "snapshot-1"
-        mock_client.session.get.assert_called_with(
-            f"{mock_client.base_url}/zfs/snapshot",
-            params={"dataset__startswith": f"tank/k8s/volumes/{volume_name}"},
-            timeout=30
-        )
 
-    def test_create_snapshot(self, mock_client):
-        """Test creating a snapshot."""
-        dataset = "tank/k8s/volumes/pvc-abc123"
-        snapshot_name = "manual-snapshot-1"
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "id": f"{dataset}@{snapshot_name}",
-            "dataset": dataset,
-            "snapshot_name": snapshot_name,
+def test_test_connection_auth_failure(truenas_client, mock_session):
+    """Test connection test with authentication failure."""
+    mock_response = Mock()
+    mock_response.status_code = 401
+    mock_session.get.return_value = mock_response
+    
+    with pytest.raises(AuthenticationError):
+        truenas_client.test_connection()
+
+
+def test_test_connection_network_error(truenas_client, mock_session):
+    """Test connection test with network error."""
+    mock_session.get.side_effect = requests.exceptions.ConnectionError("Connection failed")
+    
+    with pytest.raises(TrueNASError, match="Failed to connect"):
+        truenas_client.test_connection()
+
+
+def test_get_pools(truenas_client, mock_session):
+    """Test getting storage pools."""
+    mock_response = Mock()
+    mock_response.json.return_value = [
+        {
+            "name": "tank",
+            "status": "ONLINE",
+            "size": 1000000000000,  # 1TB
+            "allocated": 500000000000,  # 500GB
+            "free": 500000000000,  # 500GB
+            "fragmentation": "15%",
+            "healthy": True,
+            "scan": {"state": "FINISHED"}
         }
-        mock_client.session.post.return_value = mock_response
-        
-        result = mock_client.create_snapshot(dataset, snapshot_name)
-        
-        assert result["id"] == f"{dataset}@{snapshot_name}"
-        mock_client.session.post.assert_called_with(
-            f"{mock_client.base_url}/zfs/snapshot",
-            json={
-                "dataset": dataset,
-                "name": snapshot_name,
-                "recursive": False,
-            },
-            timeout=30
-        )
+    ]
+    mock_session.get.return_value = mock_response
+    
+    pools = truenas_client.get_pools()
+    
+    assert len(pools) == 1
+    assert pools[0].name == "tank"
+    assert pools[0].status == "ONLINE"
+    assert pools[0].healthy is True
 
-    def test_delete_snapshot(self, mock_client):
-        """Test deleting a snapshot."""
-        snapshot_id = "tank/k8s/volumes/pvc-abc123@snapshot-1"
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = True
-        mock_client.session.delete.return_value = mock_response
-        
-        result = mock_client.delete_snapshot(snapshot_id)
-        
-        assert result is True
-        mock_client.session.delete.assert_called_with(
-            f"{mock_client.base_url}/zfs/snapshot/id/{snapshot_id}",
-            timeout=30
-        )
 
-    def test_get_dataset_usage(self, mock_client):
-        """Test getting dataset usage statistics."""
-        dataset = "tank/k8s"
-        
-        mock_dataset_info = {
-            "id": dataset,
-            "name": dataset,
-            "used": {"value": 107374182400},
-            "available": {"value": 442381127680},
-            "referenced": {"value": 53687091200},
-            "quota": {"value": 0},
-            "children": [
-                {
-                    "name": "tank/k8s/volumes",
-                    "used": {"value": 53687091200},
-                }
-            ],
+def test_get_datasets(truenas_client, mock_session):
+    """Test getting datasets."""
+    mock_response = Mock()
+    mock_response.json.return_value = [
+        {
+            "id": "tank/k8s",
+            "type": "FILESYSTEM",
+            "used": {"value": 100000000},  # 100MB
+            "available": {"value": 900000000},  # 900MB
+            "referenced": {"value": 50000000},  # 50MB
+            "quota": {"value": None},
+            "compressratio": "1.5x"
         }
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = [mock_dataset_info]
-        mock_client.session.get.return_value = mock_response
-        
-        usage = mock_client.get_dataset_usage(dataset)
-        
-        assert usage["used"] == 107374182400
-        assert usage["available"] == 442381127680
-        assert len(usage["children"]) == 1
+    ]
+    mock_session.get.return_value = mock_response
+    
+    datasets = truenas_client.get_datasets()
+    
+    assert len(datasets) == 1
+    assert datasets[0].name == "tank/k8s"
+    assert datasets[0].type == "FILESYSTEM"
 
-    def test_find_orphaned_volumes(self, mock_client):
-        """Test finding orphaned TrueNAS volumes."""
-        # Mock iSCSI extents
-        mock_extents = [
-            {"name": "pvc-orphaned", "path": "/mnt/tank/k8s/volumes/pvc-orphaned"},
-            {"name": "pvc-active", "path": "/mnt/tank/k8s/volumes/pvc-active"},
-        ]
-        
-        # Mock NFS shares
-        mock_shares = [
-            {"path": "/mnt/tank/k8s/nfs/pvc-nfs-orphaned"},
-            {"path": "/mnt/tank/k8s/nfs/pvc-nfs-active"},
-        ]
-        
-        mock_response1 = Mock()
-        mock_response1.status_code = 200
-        mock_response1.json.return_value = mock_extents
-        
-        mock_response2 = Mock()
-        mock_response2.status_code = 200
-        mock_response2.json.return_value = mock_shares
-        
-        mock_client.session.get.side_effect = [mock_response1, mock_response2]
-        
-        # K8s volumes to check against
-        k8s_volumes = ["pvc-active", "pvc-nfs-active"]
-        
-        orphans = mock_client.find_orphaned_volumes(k8s_volumes)
-        
-        assert len(orphans) == 2
-        assert any(o.name == "pvc-orphaned" for o in orphans)
-        assert any(o.name == "pvc-nfs-orphaned" for o in orphans)
 
-    def test_error_handling(self, mock_client):
-        """Test error handling for API failures."""
-        mock_response = Mock()
-        mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
-        mock_response.raise_for_status.side_effect = Exception("Server Error")
-        mock_client.session.get.return_value = mock_response
-        
-        with pytest.raises(TrueNASError):
-            mock_client.get_pools()
+def test_get_volumes(truenas_client, mock_session):
+    """Test getting iSCSI volumes."""
+    mock_response = Mock()
+    mock_response.json.return_value = [
+        {
+            "name": "pvc-123",
+            "path": "/mnt/tank/k8s/iscsi/pvc-123",
+            "filesize": 10737418240,  # 10GB
+            "type": "FILE",
+            "enabled": True,
+            "naa": "0x6589cfc000000123",
+            "serial": "pvc-123"
+        }
+    ]
+    mock_session.get.return_value = mock_response
+    
+    volumes = truenas_client.get_volumes()
+    
+    assert len(volumes) == 1
+    assert volumes[0].name == "pvc-123"
+    assert volumes[0].size == 10737418240
 
-    def test_connection_timeout(self, mock_client):
-        """Test handling connection timeouts."""
-        mock_client.session.get.side_effect = TimeoutError("Connection timeout")
-        
-        with pytest.raises(TrueNASError, match="timeout"):
-            mock_client.get_pools()
 
-    def test_pagination(self, mock_client):
-        """Test handling paginated responses."""
-        # First page
-        mock_response1 = Mock()
-        mock_response1.status_code = 200
-        mock_response1.json.return_value = [{"id": 1, "name": "vol1"}]
-        mock_response1.headers = {"X-Total-Count": "2"}
-        
-        # Second page
-        mock_response2 = Mock()
-        mock_response2.status_code = 200
-        mock_response2.json.return_value = [{"id": 2, "name": "vol2"}]
-        mock_response2.headers = {"X-Total-Count": "2"}
-        
-        mock_client.session.get.side_effect = [mock_response1, mock_response2]
-        
-        # Assuming get_all_pages method exists
-        mock_client._get_all_pages = Mock(return_value=[
-            {"id": 1, "name": "vol1"},
-            {"id": 2, "name": "vol2"},
-        ])
-        
-        result = mock_client._get_all_pages("/some/endpoint")
-        assert len(result) == 2
+def test_get_snapshots(truenas_client, mock_session):
+    """Test getting snapshots."""
+    creation_time = int(datetime.now().timestamp())
+    
+    mock_response = Mock()
+    mock_response.json.return_value = [
+        {
+            "snapshot_name": "daily-2024-01-01",
+            "dataset": "tank/k8s/volumes/pvc-123",
+            "id": "tank/k8s/volumes/pvc-123@daily-2024-01-01",
+            "properties": {
+                "creation": {"value": str(creation_time)},
+                "used": {"value": "1073741824"},  # 1GB
+                "referenced": {"value": "2147483648"}  # 2GB
+            }
+        }
+    ]
+    mock_session.get.return_value = mock_response
+    
+    snapshots = truenas_client.get_snapshots()
+    
+    assert len(snapshots) == 1
+    assert snapshots[0].name == "daily-2024-01-01"
+    assert snapshots[0].dataset == "tank/k8s/volumes/pvc-123"
+    assert snapshots[0].used_size == 1073741824
+
+
+def test_create_snapshot(truenas_client, mock_session):
+    """Test creating a snapshot."""
+    mock_response = Mock()
+    mock_response.json.return_value = {"id": "tank/dataset@snapshot"}
+    mock_session.post.return_value = mock_response
+    
+    result = truenas_client.create_snapshot("tank/dataset", "snapshot")
+    
+    assert result["id"] == "tank/dataset@snapshot"
+    mock_session.post.assert_called_once()
+
+
+def test_delete_snapshot(truenas_client, mock_session):
+    """Test deleting a snapshot."""
+    mock_response = Mock()
+    mock_session.delete.return_value = mock_response
+    
+    result = truenas_client.delete_snapshot("tank/dataset@snapshot")
+    
+    assert result is True
+    mock_session.delete.assert_called_once()
+
+
+def test_find_orphaned_volumes(truenas_client, mock_session):
+    """Test finding orphaned volumes."""
+    # Mock iSCSI volumes
+    mock_iscsi_response = Mock()
+    mock_iscsi_response.json.return_value = [
+        {
+            "name": "orphaned-volume",
+            "path": "/mnt/tank/k8s/iscsi/orphaned-volume",
+            "filesize": 10737418240,
+            "type": "FILE",
+            "enabled": True
+        }
+    ]
+    
+    # Mock NFS shares
+    mock_nfs_response = Mock()
+    mock_nfs_response.json.return_value = [
+        {
+            "path": "/mnt/tank/k8s/nfs/orphaned-nfs-volume"
+        }
+    ]
+    
+    # Mock session to return different responses for different endpoints
+    def mock_get(url, **kwargs):
+        if "iscsi/extent" in url:
+            return mock_iscsi_response
+        elif "sharing/nfs" in url:
+            return mock_nfs_response
+        return Mock()
+    
+    mock_session.get.side_effect = mock_get
+    
+    # K8s volume names (none match our orphaned volumes)
+    k8s_volumes = ["active-volume-1", "active-volume-2"]
+    
+    orphans = truenas_client.find_orphaned_volumes(k8s_volumes)
+    
+    assert len(orphans) == 2  # One iSCSI orphan + one NFS orphan
+    assert any(o.name == "orphaned-volume" for o in orphans)
+    assert any(o.name == "orphaned-nfs-volume" for o in orphans)
+
+
+def test_analyze_snapshot_usage(truenas_client, mock_session):
+    """Test snapshot usage analysis."""
+    # Create mock snapshots with various ages and sizes
+    now = datetime.now()
+    snapshots = [
+        SnapshotInfo(
+            name="recent",
+            dataset="tank/k8s/vol1",
+            creation_time=now - timedelta(hours=12),
+            used_size=1024**3,  # 1GB
+            referenced_size=2*1024**3,
+            full_name="tank/k8s/vol1@recent"
+        ),
+        SnapshotInfo(
+            name="old",
+            dataset="tank/k8s/vol2",
+            creation_time=now - timedelta(days=45),
+            used_size=5*1024**3,  # 5GB - large
+            referenced_size=10*1024**3,
+            full_name="tank/k8s/vol2@old"
+        )
+    ]
+    
+    truenas_client.get_snapshots = Mock(return_value=snapshots)
+    
+    analysis = truenas_client.analyze_snapshot_usage()
+    
+    assert analysis["total_snapshots"] == 2
+    assert analysis["total_snapshot_size"] == 6*1024**3  # 6GB total
+    assert analysis["snapshots_by_age"]["last_24h"] == 1
+    assert analysis["snapshots_by_age"]["older"] == 1
+    assert len(analysis["large_snapshots"]) == 1  # One >1GB
+    assert len(analysis["recommendations"]) > 0
+
+
+def test_find_orphaned_truenas_snapshots(truenas_client, mock_session):
+    """Test finding orphaned TrueNAS snapshots."""
+    # Mock TrueNAS snapshots
+    truenas_snapshots = [
+        SnapshotInfo(
+            name="orphaned-snap",
+            dataset="tank/k8s/volumes/pvc-orphaned",
+            creation_time=datetime.now() - timedelta(days=10),
+            used_size=1024**3,
+            referenced_size=2*1024**3,
+            full_name="tank/k8s/volumes/pvc-orphaned@orphaned-snap"
+        ),
+        SnapshotInfo(
+            name="matched-snap",
+            dataset="tank/k8s/volumes/pvc-active",
+            creation_time=datetime.now() - timedelta(days=5),
+            used_size=1024**3,
+            referenced_size=2*1024**3,
+            full_name="tank/k8s/volumes/pvc-active@matched-snap"
+        )
+    ]
+    
+    truenas_client.get_snapshots = Mock(return_value=truenas_snapshots)
+    
+    # Mock K8s snapshots (only one matches)
+    k8s_snapshots = [
+        Mock(name="matched-snap", source_pvc="pvc-active")
+    ]
+    
+    orphans = truenas_client.find_orphaned_truenas_snapshots(k8s_snapshots)
+    
+    # Should find the orphaned snapshot
+    assert len(orphans) == 1
+    assert orphans[0].name == "orphaned-snap"

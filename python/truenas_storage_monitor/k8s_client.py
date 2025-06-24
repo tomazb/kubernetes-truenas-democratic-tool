@@ -552,3 +552,105 @@ class K8sClient:
                 }
         finally:
             w.stop()
+
+    def find_orphaned_snapshots(self, truenas_snapshots: List = None, age_threshold_minutes: int = 1440) -> List[OrphanedResource]:
+        """Find snapshots that are orphaned.
+        
+        Args:
+            truenas_snapshots: List of TrueNAS snapshots to compare against
+            age_threshold_minutes: Age threshold in minutes for considering snapshots orphaned
+            
+        Returns:
+            List of OrphanedResource objects for orphaned snapshots
+        """
+        orphaned = []
+        age_threshold = datetime.now() - timedelta(minutes=age_threshold_minutes)
+        
+        try:
+            # Get all VolumeSnapshots from Kubernetes
+            k8s_snapshots = self.get_volume_snapshots()
+            
+            # Find VolumeSnapshots without corresponding TrueNAS snapshots
+            if truenas_snapshots is not None:
+                truenas_snapshot_names = {snap.full_name for snap in truenas_snapshots}
+                
+                for k8s_snap in k8s_snapshots:
+                    # Try to match K8s snapshot to TrueNAS snapshot
+                    # This may need adjustment based on naming conventions
+                    potential_names = [
+                        f"{k8s_snap.source_pvc}@{k8s_snap.name}",
+                        f"tank/k8s/volumes/{k8s_snap.source_pvc}@{k8s_snap.name}",
+                        f"pool0/k8s/volumes/{k8s_snap.source_pvc}@{k8s_snap.name}",
+                    ]
+                    
+                    if not any(name in truenas_snapshot_names for name in potential_names):
+                        orphaned.append(OrphanedResource(
+                            resource_type=ResourceType.VOLUME_SNAPSHOT,
+                            name=k8s_snap.name,
+                            namespace=k8s_snap.namespace,
+                            volume_handle=None,
+                            creation_time=k8s_snap.creation_time or datetime.now(),
+                            size=None,
+                            location="Kubernetes",
+                            reason="No corresponding TrueNAS snapshot found",
+                            details={
+                                "source_pvc": k8s_snap.source_pvc,
+                                "snapshot_class": k8s_snap.snapshot_class,
+                                "ready": k8s_snap.ready_to_use,
+                                "potential_truenas_names": potential_names
+                            }
+                        ))
+            
+            # Find old VolumeSnapshots that might be stuck
+            for k8s_snap in k8s_snapshots:
+                if k8s_snap.creation_time and k8s_snap.creation_time < age_threshold:
+                    if not k8s_snap.ready_to_use:
+                        orphaned.append(OrphanedResource(
+                            resource_type=ResourceType.VOLUME_SNAPSHOT,
+                            name=k8s_snap.name,
+                            namespace=k8s_snap.namespace,
+                            volume_handle=None,
+                            creation_time=k8s_snap.creation_time or datetime.now(),
+                            size=None,
+                            location="Kubernetes",
+                            reason=f"VolumeSnapshot not ready after {age_threshold_minutes} minutes",
+                            details={
+                                "source_pvc": k8s_snap.source_pvc,
+                                "snapshot_class": k8s_snap.snapshot_class,
+                                "ready": k8s_snap.ready_to_use,
+                                "age_hours": (datetime.now() - k8s_snap.creation_time).total_seconds() / 3600 if k8s_snap.creation_time else 0
+                            }
+                        ))
+            
+            logger.info(f"Found {len(orphaned)} orphaned snapshots")
+            return orphaned
+            
+        except ApiException as e:
+            logger.error(f"Failed to find orphaned snapshots: {e}")
+            return []
+
+    def find_stale_snapshots(self, age_threshold_days: int = 30) -> List[VolumeSnapshotInfo]:
+        """Find VolumeSnapshots older than the specified threshold.
+        
+        Args:
+            age_threshold_days: Age threshold in days
+            
+        Returns:
+            List of stale VolumeSnapshotInfo objects
+        """
+        stale_snapshots = []
+        age_threshold = datetime.now() - timedelta(days=age_threshold_days)
+        
+        try:
+            snapshots = self.get_volume_snapshots()
+            
+            for snapshot in snapshots:
+                if snapshot.creation_time < age_threshold:
+                    stale_snapshots.append(snapshot)
+            
+            logger.info(f"Found {len(stale_snapshots)} stale snapshots older than {age_threshold_days} days")
+            return stale_snapshots
+            
+        except ApiException as e:
+            logger.error(f"Failed to find stale snapshots: {e}")
+            return []

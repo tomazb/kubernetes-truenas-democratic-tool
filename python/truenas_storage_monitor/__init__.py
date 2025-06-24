@@ -16,7 +16,7 @@ from .exceptions import (
 )
 from .k8s_client import K8sClient, K8sConfig, OrphanedResource, ResourceType
 from .truenas_client import TrueNASClient, TrueNASConfig, VolumeInfo, SnapshotInfo, PoolInfo
-from .config import Config, load_config
+from .config import load_config
 
 __all__ = [
     "cli_main",
@@ -35,6 +35,5 @@ __all__ = [
     "VolumeInfo",
     "SnapshotInfo",
     "PoolInfo",
-    "Config",
     "load_config",
 ]

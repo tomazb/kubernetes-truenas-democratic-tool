@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any, Union
 from urllib.parse import quote
 
@@ -528,6 +528,179 @@ class TrueNASClient:
         
         logger.info(f"Found {len(orphans)} orphaned volumes in TrueNAS")
         return orphans
+
+    def find_orphaned_truenas_snapshots(self, k8s_snapshots: List = None, age_threshold_days: int = 30) -> List:
+        """Find TrueNAS snapshots that don't have corresponding K8s VolumeSnapshots.
+        
+        Args:
+            k8s_snapshots: List of Kubernetes VolumeSnapshot objects
+            age_threshold_days: Age threshold for considering snapshots orphaned
+            
+        Returns:
+            List of orphaned TrueNAS snapshots
+        """
+        orphaned_snapshots = []
+        
+        try:
+            # Get all snapshots from TrueNAS
+            truenas_snapshots = self.get_snapshots()
+            
+            if k8s_snapshots is not None:
+                # Create a set of K8s snapshot identifiers for fast lookup
+                k8s_snapshot_ids = set()
+                for k8s_snap in k8s_snapshots:
+                    # Generate possible TrueNAS snapshot names that could correspond to this K8s snapshot
+                    possible_names = [
+                        f"{k8s_snap.source_pvc}@{k8s_snap.name}",
+                        f"tank/k8s/volumes/{k8s_snap.source_pvc}@{k8s_snap.name}",
+                        f"pool0/k8s/volumes/{k8s_snap.source_pvc}@{k8s_snap.name}",
+                    ]
+                    k8s_snapshot_ids.update(possible_names)
+                
+                # Find TrueNAS snapshots that don't match any K8s snapshot
+                for truenas_snap in truenas_snapshots:
+                    if truenas_snap.full_name not in k8s_snapshot_ids:
+                        # Check if this is a K8s-related snapshot (contains /k8s/ or common patterns)
+                        if any(pattern in truenas_snap.dataset for pattern in ['/k8s/', 'pvc-', 'democratic-csi']):
+                            orphaned_snapshots.append(truenas_snap)
+            
+            # Also find very old snapshots that might be orphaned regardless of K8s state
+            age_threshold = datetime.now() - timedelta(days=age_threshold_days)
+            for truenas_snap in truenas_snapshots:
+                if truenas_snap.creation_time < age_threshold:
+                    # Check if this looks like a K8s snapshot
+                    if any(pattern in truenas_snap.dataset for pattern in ['/k8s/', 'pvc-', 'democratic-csi']):
+                        if truenas_snap not in orphaned_snapshots:
+                            orphaned_snapshots.append(truenas_snap)
+            
+            logger.info(f"Found {len(orphaned_snapshots)} potentially orphaned TrueNAS snapshots")
+            return orphaned_snapshots
+            
+        except Exception as e:
+            logger.error(f"Failed to find orphaned TrueNAS snapshots: {e}")
+            return []
+
+    def analyze_snapshot_usage(self, volume_name: Optional[str] = None) -> Dict[str, Any]:
+        """Analyze snapshot usage and provide insights.
+        
+        Args:
+            volume_name: Optional specific volume to analyze
+            
+        Returns:
+            Dictionary with snapshot usage analysis
+        """
+        analysis = {
+            "total_snapshots": 0,
+            "total_snapshot_size": 0,
+            "snapshots_by_volume": {},
+            "oldest_snapshot": None,
+            "newest_snapshot": None,
+            "average_snapshot_age_days": 0,
+            "snapshots_by_age": {
+                "last_24h": 0,
+                "last_week": 0,
+                "last_month": 0,
+                "older": 0
+            },
+            "large_snapshots": [],  # Snapshots > 1GB
+            "recommendations": []
+        }
+        
+        try:
+            if volume_name:
+                snapshots = self.get_volume_snapshots(volume_name)
+            else:
+                snapshots = self.get_snapshots()
+            
+            if not snapshots:
+                return analysis
+            
+            analysis["total_snapshots"] = len(snapshots)
+            
+            # Time thresholds
+            now = datetime.now()
+            day_ago = now - timedelta(days=1)
+            week_ago = now - timedelta(days=7)
+            month_ago = now - timedelta(days=30)
+            
+            total_age_days = 0
+            oldest_snapshot = snapshots[0]
+            newest_snapshot = snapshots[0]
+            
+            for snapshot in snapshots:
+                # Track total snapshot size
+                analysis["total_snapshot_size"] += snapshot.used_size
+                
+                # Track snapshots by volume
+                volume_key = snapshot.dataset.split('/')[-1]  # Get volume name from dataset
+                if volume_key not in analysis["snapshots_by_volume"]:
+                    analysis["snapshots_by_volume"][volume_key] = {
+                        "count": 0,
+                        "total_size": 0,
+                        "latest_snapshot": None
+                    }
+                
+                vol_data = analysis["snapshots_by_volume"][volume_key]
+                vol_data["count"] += 1
+                vol_data["total_size"] += snapshot.used_size
+                
+                if vol_data["latest_snapshot"] is None or snapshot.creation_time > vol_data["latest_snapshot"]:
+                    vol_data["latest_snapshot"] = snapshot.creation_time
+                
+                # Age analysis
+                age = now - snapshot.creation_time
+                total_age_days += age.days
+                
+                if snapshot.creation_time > day_ago:
+                    analysis["snapshots_by_age"]["last_24h"] += 1
+                elif snapshot.creation_time > week_ago:
+                    analysis["snapshots_by_age"]["last_week"] += 1
+                elif snapshot.creation_time > month_ago:
+                    analysis["snapshots_by_age"]["last_month"] += 1
+                else:
+                    analysis["snapshots_by_age"]["older"] += 1
+                
+                # Track oldest and newest
+                if snapshot.creation_time < oldest_snapshot.creation_time:
+                    oldest_snapshot = snapshot
+                if snapshot.creation_time > newest_snapshot.creation_time:
+                    newest_snapshot = snapshot
+                
+                # Large snapshots (> 1GB)
+                if snapshot.used_size > 1024**3:
+                    analysis["large_snapshots"].append({
+                        "name": snapshot.name,
+                        "dataset": snapshot.dataset,
+                        "size_gb": snapshot.used_size / (1024**3),
+                        "age_days": age.days
+                    })
+            
+            analysis["oldest_snapshot"] = oldest_snapshot.creation_time
+            analysis["newest_snapshot"] = newest_snapshot.creation_time
+            analysis["average_snapshot_age_days"] = total_age_days / len(snapshots)
+            
+            # Generate recommendations
+            if analysis["snapshots_by_age"]["older"] > 10:
+                analysis["recommendations"].append(
+                    f"Consider cleaning up {analysis['snapshots_by_age']['older']} snapshots older than 30 days"
+                )
+            
+            if analysis["total_snapshot_size"] > 100 * (1024**3):  # > 100GB
+                analysis["recommendations"].append(
+                    f"Total snapshot size is {analysis['total_snapshot_size'] / (1024**3):.1f}GB - consider retention policy"
+                )
+            
+            if len(analysis["large_snapshots"]) > 5:
+                analysis["recommendations"].append(
+                    f"Found {len(analysis['large_snapshots'])} large snapshots (>1GB) - review if all are needed"
+                )
+            
+            logger.info(f"Analyzed {len(snapshots)} snapshots")
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Failed to analyze snapshot usage: {e}")
+            return analysis
 
     def _get_all_pages(self, endpoint: str, params: Optional[Dict] = None) -> List[Dict]:
         """Get all pages from a paginated endpoint.

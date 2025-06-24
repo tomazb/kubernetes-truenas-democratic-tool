@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "truenas-storage-monitor"
-version = "0.1.0"
+version = "0.2.0"
 description = "Comprehensive monitoring tool for OpenShift/Kubernetes with TrueNAS and democratic-csi"
 readme = "README.md"
 authors = [

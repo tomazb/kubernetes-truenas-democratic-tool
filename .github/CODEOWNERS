@@ -2,25 +2,25 @@
 # These owners will be automatically requested for review when someone opens a pull request
 
 # Global owners
-* @yourusername
+* @tomazb
 
 # Go code
-/go/ @yourusername
-*.go @yourusername
+/go/ @tomazb
+*.go @tomazb
 
 # Python code
-/python/ @yourusername
-*.py @yourusername
+/python/ @tomazb
+*.py @tomazb
 
 # Documentation
-/docs/ @yourusername
-*.md @yourusername
+/docs/ @tomazb
+*.md @tomazb
 
 # CI/CD
-/.github/ @yourusername
-/deploy/ @yourusername
+/.github/ @tomazb
+/deploy/ @tomazb
 
 # Security-sensitive files
-/deploy/kubernetes/rbac.yaml @yourusername @security-team
-/deploy/openshift/scc.yaml @yourusername @security-team
-**/security/ @yourusername @security-team
+/deploy/kubernetes/rbac.yaml @tomazb
+/deploy/openshift/scc.yaml @tomazb
+**/security/ @tomazb

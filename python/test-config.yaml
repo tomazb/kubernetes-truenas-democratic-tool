@@ -1,0 +1,22 @@
+openshift:
+  namespace: storage-system
+  storage_class: democratic-csi-nfs
+  csi_driver: org.democratic-csi.nfs
+
+truenas:
+  url: https://truenas.example.com
+  username: admin
+  password: test-password
+  verify_ssl: false
+
+monitoring:
+  interval: 60
+  thresholds:
+    orphaned_pv_age_hours: 24
+    pending_pvc_minutes: 60
+    snapshot_age_days: 30
+    pool_usage_percent: 80
+    snapshot_size_gb: 100
+
+alerts:
+  enabled: false

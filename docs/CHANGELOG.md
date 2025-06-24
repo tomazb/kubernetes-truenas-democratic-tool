@@ -8,13 +8,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- GitHub repository location in CLAUDE.md for reference
+- Comprehensive snapshot management functionality
+  - Snapshot health monitoring across K8s and TrueNAS
+  - Orphaned snapshot detection in both systems
+  - Snapshot usage analysis with size and age metrics
+  - Smart recommendations for snapshot optimization
+  - Multi-format output support (table, JSON, YAML)
+- Enhanced CLI commands for snapshot operations
+  - `snapshots --health` for comprehensive health status
+  - `snapshots --analysis` for detailed usage analysis
+  - `snapshots --orphaned` for orphan detection
+  - `snapshots --age-days` for filtering by age
+- Storage efficiency analysis
+  - Thin provisioning ratio calculations
+  - Snapshot overhead percentage tracking
+  - Pool utilization and fragmentation monitoring
+  - Automated recommendations for optimization
+- Monitor class enhancements
+  - `check_snapshot_health()` method with alert generation
+  - `analyze_storage_efficiency()` method for capacity planning
+  - Integrated orphaned resource detection for snapshots
+- Python implementation of all core CLI commands
+  - `orphans` command with table/JSON/YAML output
+  - `analyze` command for storage usage analysis
+  - `validate` command for configuration validation
+  - `monitor` command with Prometheus metrics support
+  - Enhanced `snapshots` command with multiple options
+- Integration test suite structure
+  - K8s integration tests with service availability checks
+  - TrueNAS integration tests with connection validation
+  - End-to-end workflow tests
+  - Proper pytest markers and skip conditions
+- Enhanced error handling
+  - Timezone-aware datetime comparisons
+  - Proper attribute validation in data classes
+  - Comprehensive exception handling in all clients
+- Demo guide and test scripts
+  - DEMO.md with comprehensive usage examples
+  - test_snapshot_functionality.py demonstrating all features
+- Subagent usage guidelines in CLAUDE.md
 
 ### Changed
 - Migrated from Docker to Podman for all containerization
 - Renamed Dockerfiles to Containerfiles following Podman conventions
 - Updated all build commands and documentation to use Podman
 - Modified GitHub Actions workflows to use Podman and buildah
+- Enhanced K8s client with snapshot-specific methods
+  - `find_orphaned_snapshots()` for K8s orphan detection
+  - `find_stale_snapshots()` for age-based filtering
+- Enhanced TrueNAS client with snapshot analysis
+  - `find_orphaned_truenas_snapshots()` for TrueNAS orphan detection
+  - `analyze_snapshot_usage()` for comprehensive metrics
+  - Improved snapshot data models with size tracking
+- Updated shared schemas to include snapshot analysis structures
+
+### Fixed
+- Import errors in Python package initialization
+- YAML parsing errors in test configurations
+- URL vs host parameter mismatch in TrueNAS configuration
+- Attribute name inconsistencies in snapshot data classes
+- Missing datetime imports for timedelta operations
+- Test coverage reporting configuration
 
 ## [0.1.0-alpha] - 2025-06-23
 
