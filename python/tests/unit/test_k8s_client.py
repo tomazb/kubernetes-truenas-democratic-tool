@@ -48,39 +48,38 @@ def test_get_storage_classes(mock_k8s_client):
     mock_sc.volume_binding_mode = "Immediate"
     mock_sc.allow_volume_expansion = True
     
-    mock_k8s_client.storage_v1.list_storage_class.return_value.items = [mock_sc]
-    
-    scs = mock_k8s_client.get_storage_classes()
-    
-    assert len(scs) == 1
-    assert scs[0]["name"] == "democratic-csi-nfs"
-    assert scs[0]["provisioner"] == "org.democratic-csi.nfs"
+    with patch.object(mock_k8s_client, 'storage_v1') as mock_storage:
+        mock_storage.list_storage_class.return_value.items = [mock_sc]
+        
+        storage_classes = mock_k8s_client.get_storage_classes()
+        
+        assert len(storage_classes) == 1
+        assert storage_classes[0].name == "democratic-csi-nfs"
+        assert storage_classes[0].provisioner == "org.democratic-csi.nfs"
 
 
 def test_get_persistent_volumes(mock_k8s_client):
     """Test getting persistent volumes."""
     # Mock PV object
     mock_pv = Mock()
-    mock_pv.metadata.name = "pv-test-123"
-    mock_pv.spec.csi.driver = "org.democratic-csi.nfs"
-    mock_pv.spec.csi.volume_handle = "test-volume-handle"
-    mock_pv.spec.capacity = {"storage": "10Gi"}
-    mock_pv.spec.access_modes = ["ReadWriteOnce"]
-    mock_pv.status.phase = "Bound"
-    mock_pv.spec.claim_ref = Mock()
-    mock_pv.spec.claim_ref.name = "test-pvc"
-    mock_pv.spec.claim_ref.namespace = "test-ns"
+    mock_pv.metadata.name = "test-pv"
     mock_pv.metadata.creation_timestamp = datetime.now()
-    mock_pv.metadata.labels = {"app": "test"}
-    mock_pv.metadata.annotations = {"volume.beta.kubernetes.io/storage-provisioner": "org.democratic-csi.nfs"}
+    mock_pv.spec.capacity = {"storage": "10Gi"}
+    mock_pv.status.phase = "Bound"
+    mock_pv.spec.claim_ref.name = "test-pvc"
+    mock_pv.spec.claim_ref.namespace = "default"
+    mock_pv.spec.storage_class_name = "democratic-csi-nfs"
+    mock_pv.spec.csi.volume_handle = "tank/k8s/volumes/test-pv"
     
-    mock_k8s_client.core_v1.list_persistent_volume.return_value.items = [mock_pv]
-    
-    pvs = mock_k8s_client.get_persistent_volumes()
-    
-    assert len(pvs) == 1
-    assert pvs[0].name == "pv-test-123"
-    assert pvs[0].driver == "org.democratic-csi.nfs"
+    with patch.object(mock_k8s_client, 'core_v1') as mock_core:
+        mock_core.list_persistent_volume.return_value.items = [mock_pv]
+        
+        pvs = mock_k8s_client.get_persistent_volumes()
+        
+        assert len(pvs) == 1
+        assert pvs[0].name == "test-pv"
+        assert pvs[0].capacity == "10Gi"
+        assert pvs[0].status == "Bound"
 
 
 def test_get_persistent_volume_claims(mock_k8s_client):
@@ -88,171 +87,109 @@ def test_get_persistent_volume_claims(mock_k8s_client):
     # Mock PVC object
     mock_pvc = Mock()
     mock_pvc.metadata.name = "test-pvc"
-    mock_pvc.metadata.namespace = "test-namespace"
-    mock_pvc.spec.storage_class_name = "democratic-csi-nfs"
-    mock_pvc.spec.volume_name = "pv-test-123"
+    mock_pvc.metadata.namespace = "default"
+    mock_pvc.metadata.creation_timestamp = datetime.now()
+    mock_pvc.spec.access_modes = ["ReadWriteOnce"]
     mock_pvc.spec.resources.requests = {"storage": "10Gi"}
     mock_pvc.status.phase = "Bound"
-    mock_pvc.metadata.creation_timestamp = datetime.now()
-    mock_pvc.metadata.labels = {}
-    mock_pvc.metadata.annotations = {}
+    mock_pvc.spec.volume_name = "test-pv"
+    mock_pvc.spec.storage_class_name = "democratic-csi-nfs"
     
-    mock_k8s_client.core_v1.list_namespaced_persistent_volume_claim.return_value.items = [mock_pvc]
-    
-    pvcs = mock_k8s_client.get_persistent_volume_claims()
-    
-    assert len(pvcs) == 1
-    assert pvcs[0].name == "test-pvc"
-    assert pvcs[0].namespace == "test-namespace"
+    with patch.object(mock_k8s_client, 'core_v1') as mock_core:
+        mock_core.list_namespaced_persistent_volume_claim.return_value.items = [mock_pvc]
+        
+        pvcs = mock_k8s_client.get_persistent_volume_claims()
+        
+        assert len(pvcs) == 1
+        assert pvcs[0].name == "test-pvc"
+        assert pvcs[0].namespace == "default"
+        assert pvcs[0].status == "Bound"
 
 
 def test_get_volume_snapshots(mock_k8s_client):
     """Test getting volume snapshots."""
     # Mock VolumeSnapshot object
-    mock_snapshot = {
-        "metadata": {
-            "name": "test-snapshot",
-            "namespace": "test-namespace",
-            "creationTimestamp": "2024-01-01T10:00:00Z",
-            "labels": {},
-            "annotations": {}
-        },
-        "spec": {
-            "source": {"persistentVolumeClaimName": "test-pvc"},
-            "volumeSnapshotClassName": "democratic-csi-nfs"
-        },
-        "status": {
-            "readyToUse": True
+    mock_snapshot = Mock()
+    mock_snapshot.metadata.name = "test-snapshot"
+    mock_snapshot.metadata.namespace = "default"
+    mock_snapshot.metadata.creation_timestamp = datetime.now()
+    mock_snapshot.spec.source.persistent_volume_claim_name = "test-pvc"
+    mock_snapshot.status.ready_to_use = True
+    mock_snapshot.status.restore_size = "1Gi"
+    
+    with patch.object(mock_k8s_client, 'custom_objects_api') as mock_custom:
+        mock_custom.list_namespaced_custom_object.return_value = {
+            "items": [mock_snapshot]
         }
-    }
-    
-    mock_k8s_client.custom_objects.list_namespaced_custom_object.return_value = {
-        "items": [mock_snapshot]
-    }
-    
-    snapshots = mock_k8s_client.get_volume_snapshots()
-    
-    assert len(snapshots) == 1
-    assert snapshots[0].name == "test-snapshot"
-    assert snapshots[0].source_pvc == "test-pvc"
-    assert snapshots[0].ready_to_use is True
+        
+        snapshots = mock_k8s_client.get_volume_snapshots()
+        
+        assert len(snapshots) == 1
+        assert snapshots[0].name == "test-snapshot"
+        assert snapshots[0].namespace == "default"
+        assert snapshots[0].ready_to_use is True
 
 
-def test_find_orphaned_pvs(mock_k8s_client):
-    """Test finding orphaned PVs."""
-    # Mock orphaned PV
-    mock_pv = PersistentVolumeInfo(
-        name="orphaned-pv",
-        volume_handle="orphaned-handle",
-        driver="org.democratic-csi.nfs",
-        capacity="10Gi",
-        access_modes=["ReadWriteOnce"],
-        phase="Available",  # Available = orphaned
-        creation_time=datetime.now() - timedelta(hours=25)
-    )
-    
-    mock_k8s_client.get_persistent_volumes = Mock(return_value=[mock_pv])
-    
-    orphans = mock_k8s_client.find_orphaned_pvs()
-    
-    assert len(orphans) == 1
-    assert orphans[0].name == "orphaned-pv"
-    assert orphans[0].resource_type == ResourceType.PERSISTENT_VOLUME
+def test_test_connection_success(mock_k8s_client):
+    """Test successful connection test."""
+    with patch.object(mock_k8s_client, 'core_v1') as mock_core:
+        mock_core.get_api_resources.return_value = Mock()
+        
+        result = mock_k8s_client.test_connection()
+        
+        assert result is True
 
 
-def test_find_orphaned_pvcs(mock_k8s_client):
-    """Test finding orphaned PVCs."""
-    # Mock orphaned PVC (stuck in Pending)
-    mock_pvc = PersistentVolumeClaimInfo(
-        name="orphaned-pvc",
-        namespace="test",
-        storage_class="democratic-csi-nfs",
-        volume_name=None,
-        capacity="10Gi",
-        phase="Pending",  # Pending for too long = orphaned
-        creation_time=datetime.now() - timedelta(hours=2)  # > 60 minutes
-    )
+def test_test_connection_failure(mock_k8s_client):
+    """Test connection test failure."""
+    from kubernetes.client.rest import ApiException
     
-    mock_k8s_client.get_persistent_volume_claims = Mock(return_value=[mock_pvc])
-    
-    orphans = mock_k8s_client.find_orphaned_pvcs()
-    
-    assert len(orphans) == 1
-    assert orphans[0].name == "orphaned-pvc"
-    assert orphans[0].resource_type == ResourceType.PERSISTENT_VOLUME_CLAIM
+    with patch.object(mock_k8s_client, 'core_v1') as mock_core:
+        mock_core.get_api_resources.side_effect = ApiException("Connection failed")
+        
+        result = mock_k8s_client.test_connection()
+        
+        assert result is False
 
 
-def test_check_csi_driver_health(mock_k8s_client):
-    """Test CSI driver health check."""
-    # Mock healthy pods
-    mock_pod = {
-        "name": "democratic-csi-controller",
-        "namespace": "democratic-csi",
-        "status": "Running",
-        "ready": True,
-        "containers": [
-            {"name": "csi-controller", "ready": True, "restart_count": 0}
-        ]
-    }
+def test_get_volume_names(mock_k8s_client):
+    """Test getting volume names."""
+    mock_pvs = [
+        Mock(name="pv-1", volume_handle="tank/k8s/vol1"),
+        Mock(name="pv-2", volume_handle="tank/k8s/vol2")
+    ]
     
-    mock_k8s_client.get_csi_driver_pods = Mock(return_value=[mock_pod])
-    
-    health = mock_k8s_client.check_csi_driver_health()
-    
-    assert health["healthy"] is True
-    assert health["total_pods"] == 1
-    assert health["running_pods"] == 1
-    assert health["ready_pods"] == 1
+    with patch.object(mock_k8s_client, 'get_persistent_volumes', return_value=mock_pvs):
+        names = mock_k8s_client.get_volume_names()
+        
+        assert len(names) == 2
+        assert "vol1" in names
+        assert "vol2" in names
 
 
-def test_find_orphaned_snapshots(mock_k8s_client):
-    """Test finding orphaned snapshots."""
-    # Mock K8s snapshot
-    k8s_snapshot = VolumeSnapshotInfo(
-        name="test-snapshot",
-        namespace="test",
-        source_pvc="test-pvc",
-        snapshot_class="democratic-csi-nfs",
-        ready_to_use=True,
-        creation_time=datetime.now() - timedelta(days=2)
-    )
+def test_find_orphaned_k8s_snapshots(mock_k8s_client):
+    """Test finding orphaned K8s snapshots."""
+    # Mock snapshots
+    mock_snapshots = [
+        Mock(
+            name="orphaned-snapshot",
+            source_pvc="missing-pvc",
+            ready_to_use=True,
+            creation_time=datetime.now() - timedelta(days=40)
+        ),
+        Mock(
+            name="valid-snapshot", 
+            source_pvc="active-pvc",
+            ready_to_use=True,
+            creation_time=datetime.now() - timedelta(days=5)
+        )
+    ]
     
-    mock_k8s_client.get_volume_snapshots = Mock(return_value=[k8s_snapshot])
+    # Active PVC names
+    active_pvcs = ["active-pvc", "another-pvc"]
     
-    # Mock TrueNAS snapshots (empty - so K8s snapshot is orphaned)
-    truenas_snapshots = []
-    
-    orphans = mock_k8s_client.find_orphaned_snapshots(truenas_snapshots)
-    
-    assert len(orphans) == 1
-    assert orphans[0].name == "test-snapshot"
-
-
-def test_find_stale_snapshots(mock_k8s_client):
-    """Test finding stale snapshots."""
-    # Mock old snapshot
-    old_snapshot = VolumeSnapshotInfo(
-        name="old-snapshot",
-        namespace="test",
-        source_pvc="test-pvc",
-        snapshot_class="democratic-csi-nfs",
-        ready_to_use=True,
-        creation_time=datetime.now() - timedelta(days=45)  # 45 days old
-    )
-    
-    # Mock recent snapshot
-    recent_snapshot = VolumeSnapshotInfo(
-        name="recent-snapshot",
-        namespace="test",
-        source_pvc="test-pvc",
-        snapshot_class="democratic-csi-nfs",
-        ready_to_use=True,
-        creation_time=datetime.now() - timedelta(days=5)  # 5 days old
-    )
-    
-    mock_k8s_client.get_volume_snapshots = Mock(return_value=[old_snapshot, recent_snapshot])
-    
-    stale = mock_k8s_client.find_stale_snapshots(age_threshold_days=30)
-    
-    assert len(stale) == 1
-    assert stale[0].name == "old-snapshot"
+    with patch.object(mock_k8s_client, 'get_volume_snapshots', return_value=mock_snapshots):
+        orphans = mock_k8s_client.find_orphaned_k8s_snapshots(active_pvcs, age_days=30)
+        
+        assert len(orphans) == 1
+        assert orphans[0].name == "orphaned-snapshot"

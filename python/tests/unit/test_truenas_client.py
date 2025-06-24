@@ -26,7 +26,10 @@ def truenas_config():
 @pytest.fixture
 def mock_session():
     """Create a mocked requests session."""
-    return Mock(spec=requests.Session)
+    session = Mock(spec=requests.Session)
+    session.headers = Mock()
+    session.auth = None
+    return session
 
 
 @pytest.fixture
@@ -34,7 +37,6 @@ def truenas_client(truenas_config, mock_session):
     """Create a TrueNAS client with mocked session."""
     with patch('truenas_storage_monitor.truenas_client.requests.Session', return_value=mock_session):
         client = TrueNASClient(truenas_config)
-        client.session = mock_session
         return client
 
 

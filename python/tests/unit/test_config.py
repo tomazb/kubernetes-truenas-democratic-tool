@@ -15,7 +15,7 @@ def test_load_config_missing_file():
 
 
 @patch("truenas_storage_monitor.config.Path.exists")
-@patch("builtins.open", new_callable=mock_open, read_data="openshift:\n  namespace: test\nmonitoring: {}")
+@patch("builtins.open", new_callable=mock_open, read_data="openshift:\n  namespace: test\nmonitoring:\n  interval: 60")
 def test_load_config_from_file(mock_file, mock_exists):
     """Test loading config from file."""
     mock_exists.return_value = True
@@ -52,6 +52,8 @@ def test_load_config_with_env_vars():
     config_content = """
 openshift:
   namespace: ${TEST_NAMESPACE:-default}
+monitoring:
+  interval: 60
 truenas:
   password: ${TRUENAS_PASSWORD}
 """
@@ -80,6 +82,7 @@ def test_validate_config_valid():
     """Test config validation with valid config."""
     config = {
         "openshift": {"namespace": "test"},
+        "monitoring": {"interval": 60},
         "truenas": {"url": "https://truenas.example.com", "username": "admin", "password": "secret"}
     }
     
