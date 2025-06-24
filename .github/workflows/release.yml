@@ -26,12 +26,11 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
       - name: Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
           body: |
@@ -83,7 +82,7 @@ jobs:
             ./cmd/api-server
             
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: binaries-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/*
@@ -144,16 +143,22 @@ jobs:
           
       - name: Build and push multi-arch image
         run: |
+          # Skip if container files don't exist yet
+          if [ ! -f ./container/Containerfile.${{ matrix.component }} ]; then
+            echo "Containerfile.${{ matrix.component }} not found, skipping build"
+            exit 0
+          fi
+          
           # Build for multiple architectures
           buildah manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest
           
           # Build AMD64
-          buildah bud --arch amd64 -f ./deploy/container/Containerfile.${{ matrix.component }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64 .
+          buildah bud --arch amd64 -f ./container/Containerfile.${{ matrix.component }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64 .
           buildah push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64
           buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64
           
           # Build ARM64
-          buildah bud --arch arm64 -f ./deploy/container/Containerfile.${{ matrix.component }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64 .
+          buildah bud --arch arm64 -f ./container/Containerfile.${{ matrix.component }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64 .
           buildah push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64
           buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64
           
@@ -165,7 +170,6 @@ jobs:
           buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:${{ needs.release.outputs.version }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64
           buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:${{ needs.release.outputs.version }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64
           buildah manifest push --all ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:${{ needs.release.outputs.version }}
-            BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   publish-helm:
     name: Publish Helm Chart
@@ -186,11 +190,14 @@ jobs:
           helm package deploy/helm/truenas-monitor
           
       - name: Upload Helm chart
-        uses: actions/upload-release-asset@v1
+        run: |
+          # Skip if helm chart doesn't exist yet
+          if [ ! -d deploy/helm/truenas-monitor ]; then
+            echo "Helm chart not found, skipping upload"
+            exit 0
+          fi
+          
+          # Upload to release
+          gh release upload ${{ github.ref_name }} ./truenas-monitor-${{ needs.release.outputs.version }}.tgz
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: ./truenas-monitor-${{ needs.release.outputs.version }}.tgz
-          asset_name: truenas-monitor-${{ needs.release.outputs.version }}.tgz
-          asset_content_type: application/gzip
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,4 +1,4 @@
-module github.com/yourusername/kubernetes-truenas-democratic-tool
+module github.com/tomazb/kubernetes-truenas-democratic-tool
 
 go 1.21
 
