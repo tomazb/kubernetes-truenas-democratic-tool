@@ -84,25 +84,27 @@ def test_cli_version(runner):
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_orphans_command_table_format(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.cli.K8sClient')
+def test_orphans_command_table_format(mock_k8s_client_class, mock_load_config, runner, mock_config):
     """Test orphans command with table format."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_k8s_client = mock_k8s_client_class.return_value
+    mock_k8s_client.find_orphaned_pvs.return_value = []
+    mock_k8s_client.find_orphaned_pvcs.return_value = []
     
     result = runner.invoke(orphans, ['--format', 'table'])
     
     assert result.exit_code == 0
-    mock_monitor.check_orphaned_pvs.assert_called_once()
-    mock_monitor.check_orphaned_volumes.assert_called_once()
+    mock_k8s_client.find_orphaned_pvs.assert_called_once()
+    mock_k8s_client.find_orphaned_pvcs.assert_called_once()
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor') 
-def test_orphans_command_json_format(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor') 
+def test_orphans_command_json_format(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test orphans command with JSON format."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(orphans, ['--format', 'json'])
     
@@ -115,11 +117,11 @@ def test_orphans_command_json_format(mock_create_monitor, mock_load_config, runn
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_orphans_command_yaml_format(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_orphans_command_yaml_format(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test orphans command with YAML format."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(orphans, ['--format', 'yaml'])
     
@@ -132,11 +134,11 @@ def test_orphans_command_yaml_format(mock_create_monitor, mock_load_config, runn
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_analyze_command(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_analyze_command(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test analyze command."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(analyze, [])
     
@@ -145,11 +147,11 @@ def test_analyze_command(mock_create_monitor, mock_load_config, runner, mock_con
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_snapshots_command_health(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_snapshots_command_health(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test snapshots command with health flag."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(snapshots, ['--health'])
     
@@ -158,11 +160,11 @@ def test_snapshots_command_health(mock_create_monitor, mock_load_config, runner,
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_snapshots_command_analysis(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_snapshots_command_analysis(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test snapshots command with analysis flag."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     # Mock the analyze_trends method
     mock_monitor.analyze_trends.return_value = {
@@ -181,11 +183,11 @@ def test_snapshots_command_analysis(mock_create_monitor, mock_load_config, runne
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_snapshots_command_orphaned(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_snapshots_command_orphaned(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test snapshots command with orphaned flag."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(snapshots, ['--orphaned'])
     
@@ -194,11 +196,11 @@ def test_snapshots_command_orphaned(mock_create_monitor, mock_load_config, runne
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_snapshots_command_with_volume_filter(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_snapshots_command_with_volume_filter(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test snapshots command with volume filter."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(snapshots, ['--volume', 'test-volume', '--health'])
     
@@ -207,11 +209,11 @@ def test_snapshots_command_with_volume_filter(mock_create_monitor, mock_load_con
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_validate_command(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_validate_command(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test validate command."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(validate, [])
     
@@ -220,11 +222,11 @@ def test_validate_command(mock_create_monitor, mock_load_config, runner, mock_co
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_validate_command_verbose(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_validate_command_verbose(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test validate command with verbose flag."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(validate, ['--verbose'])
     
@@ -233,11 +235,11 @@ def test_validate_command_verbose(mock_create_monitor, mock_load_config, runner,
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_monitor_command(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_monitor_command(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test monitor command."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     # Mock monitoring summary
     mock_monitor.get_monitoring_summary.return_value = {
@@ -254,11 +256,11 @@ def test_monitor_command(mock_create_monitor, mock_load_config, runner, mock_con
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_report_command(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_report_command(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test report command."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     # Mock comprehensive health check
     mock_monitor.run_health_check.return_value = {
@@ -324,12 +326,12 @@ def test_cli_config_validation_error(mock_load_config, runner):
 
 
 @patch('truenas_storage_monitor.cli.load_config') 
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_cli_connection_error(mock_create_monitor, mock_load_config, runner, mock_config):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_cli_connection_error(mock_monitor_class, mock_load_config, runner, mock_config):
     """Test CLI with connection error."""
     mock_load_config.return_value = mock_config
     from truenas_storage_monitor.exceptions import TrueNASError
-    mock_create_monitor.side_effect = TrueNASError("Connection failed")
+    mock_monitor_class.side_effect = TrueNASError("Connection failed")
     
     result = runner.invoke(orphans, [])
     assert result.exit_code != 0
@@ -379,11 +381,11 @@ def test_format_yaml_output():
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_snapshots_age_filter(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_snapshots_age_filter(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test snapshots command with age filter."""
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     result = runner.invoke(snapshots, ['--age-days', '14', '--health'])
     
@@ -392,11 +394,11 @@ def test_snapshots_age_filter(mock_create_monitor, mock_load_config, runner, moc
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-@patch('truenas_storage_monitor.cli.create_monitor')
-def test_monitor_with_metrics_port(mock_create_monitor, mock_load_config, runner, mock_config, mock_monitor):
+@patch('truenas_storage_monitor.monitor.Monitor')
+def test_monitor_with_metrics_port(mock_monitor_class, mock_load_config, runner, mock_config, mock_monitor):
     """Test monitor command with metrics port.""" 
     mock_load_config.return_value = mock_config
-    mock_create_monitor.return_value = mock_monitor
+    mock_monitor_class.return_value = mock_monitor
     
     mock_monitor.get_monitoring_summary.return_value = {
         "resources": {"k8s_pvs": 5},
