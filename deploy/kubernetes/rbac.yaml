@@ -1,12 +1,12 @@
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: truenas-monitor
-  namespace: storage-monitoring
+  namespace: truenas-monitor
   labels:
     app.kubernetes.io/name: truenas-monitor
-    app.kubernetes.io/component: monitor
+    app.kubernetes.io/component: serviceaccount
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -14,37 +14,39 @@ metadata:
   name: truenas-monitor
   labels:
     app.kubernetes.io/name: truenas-monitor
-    app.kubernetes.io/component: monitor
+    app.kubernetes.io/component: rbac
 rules:
-  # Read PVs and PVCs
-  - apiGroups: [""]
-    resources: ["persistentvolumes", "persistentvolumeclaims"]
-    verbs: ["get", "list", "watch"]
-  
-  # Read StorageClasses and VolumeAttachments
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["storageclasses", "volumeattachments", "csinodes", "csidrivers"]
-    verbs: ["get", "list", "watch"]
-  
-  # Read VolumeSnapshots
-  - apiGroups: ["snapshot.storage.k8s.io"]
-    resources: ["volumesnapshots", "volumesnapshotcontents", "volumesnapshotclasses"]
-    verbs: ["get", "list", "watch"]
-  
-  # Read Nodes (for CSI node info)
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get", "list"]
-  
-  # Read Pods (for volume attachment info)
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list"]
-  
-  # Read Events
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["get", "list", "watch"]
+# Core resources
+- apiGroups: [""]
+  resources: ["persistentvolumes", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "namespaces"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+
+# Storage resources
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "volumeattachments"]
+  verbs: ["get", "list", "watch"]
+
+# CSI resources
+- apiGroups: ["storage.k8s.io"]
+  resources: ["csinodes", "csidrivers"]
+  verbs: ["get", "list"]
+
+# Snapshot resources
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshots", "volumesnapshotcontents", "volumesnapshotclasses"]
+  verbs: ["get", "list", "watch"]
+
+# Metrics
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -52,12 +54,12 @@ metadata:
   name: truenas-monitor
   labels:
     app.kubernetes.io/name: truenas-monitor
-    app.kubernetes.io/component: monitor
+    app.kubernetes.io/component: rbac
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: truenas-monitor
 subjects:
-  - kind: ServiceAccount
-    name: truenas-monitor
-    namespace: storage-monitoring
+- kind: ServiceAccount
+  name: truenas-monitor
+  namespace: truenas-monitor

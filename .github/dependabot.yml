@@ -5,14 +5,15 @@ updates:
     directory: "/go"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
     reviewers:
-      - "yourusername"
-    labels:
-      - "dependencies"
-      - "go"
+      - "maintainers"
+    assignees:
+      - "maintainers"
     commit-message:
-      prefix: "chore"
+      prefix: "go"
       include: "scope"
 
   # Python dependencies
@@ -20,14 +21,15 @@ updates:
     directory: "/python"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
     reviewers:
-      - "yourusername"
-    labels:
-      - "dependencies"
-      - "python"
+      - "maintainers"
+    assignees:
+      - "maintainers"
     commit-message:
-      prefix: "chore"
+      prefix: "python"
       include: "scope"
 
   # GitHub Actions
@@ -35,25 +37,29 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 3
     reviewers:
-      - "yourusername"
-    labels:
-      - "dependencies"
-      - "github-actions"
+      - "maintainers"
+    assignees:
+      - "maintainers"
     commit-message:
-      prefix: "chore"
+      prefix: "ci"
       include: "scope"
 
-  # Docker dependencies
+  # Docker
   - package-ecosystem: "docker"
     directory: "/deploy/docker"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 3
     reviewers:
-      - "yourusername"
-    labels:
-      - "dependencies"
-      - "docker"
+      - "maintainers"
+    assignees:
+      - "maintainers"
     commit-message:
-      prefix: "chore"
+      prefix: "docker"
       include: "scope"

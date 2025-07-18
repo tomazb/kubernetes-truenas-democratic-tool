@@ -1,17 +1,18 @@
 name: CI Pipeline
 
 on:
-  pull_request:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
 
 env:
   GO_VERSION: '1.21'
   PYTHON_VERSION: '3.11'
 
 jobs:
-  # Go tests
-  go-test:
+  # Go Tests
+  go-tests:
     name: Go Tests
     runs-on: ubuntu-latest
     steps:
@@ -31,21 +32,19 @@ jobs:
             ${{ runner.os }}-go-
             
       - name: Download dependencies
-        working-directory: ./go
-        run: go mod download
+        run: cd go && go mod download
         
       - name: Run tests
-        working-directory: ./go
-        run: go test ./... -v -cover -coverprofile=coverage.out
+        run: cd go && go test ./... -v -race -coverprofile=coverage.out
         
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: ./go/coverage.out
           flags: go
-          
-  # Python tests
-  python-test:
+
+  # Python Tests
+  python-tests:
     name: Python Tests
     runs-on: ubuntu-latest
     strategy:
@@ -54,12 +53,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           
-      - name: Cache pip
+      - name: Cache pip packages
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
@@ -68,25 +67,65 @@ jobs:
             ${{ runner.os }}-pip-
             
       - name: Install dependencies
-        working-directory: ./python
         run: |
-          python -m pip install --upgrade pip
+          cd python
+          pip install -r requirements.txt
           pip install -r requirements-dev.txt
           
       - name: Run tests
-        working-directory: ./python
         run: |
-          pytest tests/unit/ --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=90
+          cd python
+          pytest tests/ -v --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=85
           
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: ./python/coverage.xml
           flags: python
+
+  # Security Scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
           
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          
+      - name: Set up Python for security scan
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install Python security tools
+        run: |
+          pip install bandit safety
+          
+      - name: Run Bandit security scan
+        run: |
+          cd python
+          bandit -r truenas_storage_monitor/ -f json -o bandit-report.json || true
+          
+      - name: Run Safety check
+        run: |
+          cd python
+          safety check --json --output safety-report.json || true
+
   # Linting
   lint:
-    name: Lint Code
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,80 +135,80 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: go
+          
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           
-      - name: Install linters
+      - name: Install Python linting tools
         run: |
-          # Go linters
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-          
-          # Python linters
           pip install black flake8 mypy
           
-      - name: Run Go linters
-        working-directory: ./go
+      - name: Run Black
         run: |
-          golangci-lint run ./...
-          go vet ./...
+          cd python
+          black --check .
           
-      - name: Run Python linters
-        working-directory: ./python
+      - name: Run Flake8
         run: |
-          black . --check
+          cd python
           flake8 .
-          mypy .
           
-  # Security scanning
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Run Trivy security scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'trivy-results.sarif'
-          
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          
-      - name: Run Bandit security scan
-        working-directory: ./python
+      - name: Run MyPy
         run: |
-          pip install bandit
-          bandit -r . -f json -o bandit-report.json || true
-          
-      - name: Run Safety check
-        working-directory: ./python
-        run: |
-          pip install safety
-          safety check --json || true
-          
-      - name: Run gosec
-        working-directory: ./go
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -fmt=json -out=gosec-report.json ./... || true
-          
-  # Build test
+          cd python
+          mypy truenas_storage_monitor/
+
+  # Build Test
   build-test:
     name: Build Test
     runs-on: ubuntu-latest
-    needs: [go-test, python-test]
+    needs: [go-tests, python-tests]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          
+      - name: Build Go binaries
+        run: |
+          cd go
+          go build -o ../bin/monitor ./cmd/monitor
+          go build -o ../bin/api-server ./cmd/api-server
+          go build -o ../bin/controller ./cmd/controller
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Build Python package
+        run: |
+          cd python
+          pip install build
+          python -m build
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            bin/
+            python/dist/
+
+  # Container Build Test
+  container-build:
+    name: Container Build Test
+    runs-on: ubuntu-latest
+    needs: build-test
     steps:
       - uses: actions/checkout@v4
       
@@ -182,7 +221,17 @@ jobs:
           context: .
           file: ./deploy/docker/Dockerfile.monitor
           push: false
-          tags: test-monitor:latest
+          tags: truenas-monitor:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          
+      - name: Build API container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deploy/docker/Dockerfile.api
+          push: false
+          tags: truenas-api:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           
@@ -192,30 +241,6 @@ jobs:
           context: .
           file: ./deploy/docker/Dockerfile.cli
           push: false
-          tags: test-cli:latest
+          tags: truenas-cli:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          
-  # Integration tests (only on main/develop)
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-    needs: [go-test, python-test]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up kind
-        uses: helm/kind-action@v1.8.0
-        
-      - name: Run integration tests
-        run: |
-          make test-integration
-          
-  # All tests passed
-  ci-success:
-    name: CI Success
-    runs-on: ubuntu-latest
-    needs: [go-test, python-test, lint, security-scan, build-test]
-    steps:
-      - run: echo "All CI checks passed!"

@@ -1,35 +1,46 @@
-# Python CLI Docker image
+# Python CLI container
 FROM python:3.11-slim
 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
+RUN apt-get update && apt-get install -y \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN useradd -m -u 1000 -s /bin/bash monitor
+RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Set working directory
 WORKDIR /app
 
-# Copy Python requirements
-COPY python/requirements.txt .
+# Copy requirements first for better caching
+COPY python/requirements.txt python/requirements-dev.txt ./
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy Python package
-COPY python/ ./python/
+# Copy Python source code
+COPY python/ .
 
 # Install the package
-RUN pip install -e ./python
+RUN pip install -e .
+
+# Create directories for config and data
+RUN mkdir -p /home/appuser/.kube /app/data && \
+    chown -R appuser:appuser /home/appuser /app
 
 # Switch to non-root user
-USER monitor
+USER appuser
 
-# Set environment
-ENV PYTHONUNBUFFERED=1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["truenas-monitor", "--version"]
 
 # Default command
 ENTRYPOINT ["truenas-monitor"]

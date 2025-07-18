@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: truenas-api
+  namespace: truenas-monitor
+  labels:
+    app.kubernetes.io/name: truenas-monitor
+    app.kubernetes.io/component: api
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: truenas-monitor
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: truenas-monitor
+        app.kubernetes.io/component: api
+        app.kubernetes.io/version: "0.1.0"
+    spec:
+      serviceAccountName: truenas-monitor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+      - name: api
+        image: truenas-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: TRUENAS_URL
+          valueFrom:
+            secretKeyRef:
+              name: truenas-monitor-secrets
+              key: TRUENAS_URL
+        - name: TRUENAS_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: truenas-monitor-secrets
+              key: TRUENAS_USERNAME
+        - name: TRUENAS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: truenas-monitor-secrets
+              key: TRUENAS_PASSWORD
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: truenas-monitor-config
+      restartPolicy: Always

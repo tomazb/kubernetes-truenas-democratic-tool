@@ -9,6 +9,7 @@ from rich.table import Table
 
 from . import __version__
 from .config import load_config
+from .monitor import Monitor
 from .exceptions import TrueNASMonitorError
 
 console = Console()
