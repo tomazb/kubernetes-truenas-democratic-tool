@@ -38,7 +38,7 @@ jobs:
         run: cd go && go test ./... -v -race -coverprofile=coverage.out
         
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: ./go/coverage.out
           flags: go
@@ -78,7 +78,7 @@ jobs:
           pytest tests/ -v --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=85
           
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: ./python/coverage.xml
           flags: python
