@@ -51,24 +51,41 @@ func main() {
 	}
 
 	// Initialize Kubernetes client
-	k8sClient, err := k8s.NewClient(cfg.Kubernetes)
+	k8sClient, err := k8s.NewClient(k8s.Config{
+		Kubeconfig: cfg.Kubernetes.Kubeconfig,
+		Namespace:  cfg.Kubernetes.Namespace,
+		InCluster:  cfg.Kubernetes.InCluster,
+	})
 	if err != nil {
 		logger.Fatal("Failed to initialize Kubernetes client", zap.Error(err))
 	}
 
 	// Initialize TrueNAS client
-	truenasClient, err := truenas.NewClient(cfg.TrueNAS)
+	timeout, err := time.ParseDuration(cfg.TrueNAS.Timeout)
+	if err != nil {
+		logger.Fatal("Failed to parse TrueNAS timeout", zap.Error(err))
+	}
+	
+	truenasClient, err := truenas.NewClient(truenas.Config{
+		URL:      cfg.TrueNAS.URL,
+		Username: cfg.TrueNAS.Username,
+		Password: cfg.TrueNAS.Password,
+		Timeout:  timeout,
+	})
 	if err != nil {
 		logger.Fatal("Failed to initialize TrueNAS client", zap.Error(err))
 	}
 
 	// Initialize API server
-	apiServer := api.NewServer(api.Config{
+	apiServer, err := api.NewServer(api.Config{
 		Port:          *port,
 		K8sClient:     k8sClient,
 		TruenasClient: truenasClient,
 		Logger:        logger,
 	})
+	if err != nil {
+		logger.Fatal("Failed to initialize API server", zap.Error(err))
+	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
