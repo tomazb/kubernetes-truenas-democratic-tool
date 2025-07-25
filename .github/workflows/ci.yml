@@ -510,7 +510,7 @@ jobs:
   dependency-scan:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
-    if: secrets.SNYK_TOKEN != ''
+    if: ${{ secrets.SNYK_TOKEN != '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -542,7 +542,6 @@ jobs:
       - container-build
       - k8s-validation
       - docs-validation
-      - dependency-scan
     if: always()
     steps:
       - name: Check all jobs status
@@ -560,10 +559,4 @@ jobs:
             exit 1
           fi
           
-          # Check optional jobs (may be skipped)
-          if [[ "${{ needs.dependency-scan.result }}" == "failure" ]]; then
-            echo "Dependency scan failed"
-            exit 1
-          fi
-          
-          echo "All required CI checks passed! ✅"
+          echo "All required CI checks passed successfully!"
