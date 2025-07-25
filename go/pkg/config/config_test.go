@@ -220,6 +220,16 @@ func TestValidate(t *testing.T) {
 					Port: 8080,
 					Path: "/metrics",
 				},
+				Logging: LoggingConfig{
+					Level:    "info",
+					Encoding: "json",
+				},
+				Security: SecurityConfig{
+					TLSMinVersion:  "1.3",
+					RateLimitRPS:   100,
+					AllowedOrigins: []string{"*"},
+					SessionTimeout: 24 * time.Hour,
+				},
 			},
 			wantErr: false,
 		},

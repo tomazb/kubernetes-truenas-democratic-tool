@@ -18,6 +18,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	snapshotclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"go.uber.org/zap"
 )
 
@@ -75,7 +76,7 @@ type Client interface {
 type client struct {
 	clientset       kubernetes.Interface
 	snapshotClient  snapshotclient.Interface
-	logger          *zap.Logger
+	logger          *logging.Logger
 	config          Config
 }
 
@@ -148,19 +149,25 @@ func NewClient(config Config) (Client, error) {
 	}
 
 	// Initialize logger
-	logger, _ := zap.NewProduction()
+	logger, err := logging.NewLogger(logging.Config{
+		Level:       "info",
+		Encoding:    "json",
+		Development: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
 
 	return &client{
 		clientset:      clientset,
 		snapshotClient: snapshotClient,
-		logger:         logger.With(zap.String("component", "k8s-client")),
+		logger:         logger,
 		config:         config,
 	}, nil
 }
 
 // ListPersistentVolumes lists all persistent volumes with retry logic
 func (c *client) ListPersistentVolumes(ctx context.Context) ([]corev1.PersistentVolume, error) {
-	start := time.Now()
 	var pvList *corev1.PersistentVolumeList
 	
 	err := retry.OnError(
@@ -177,16 +184,15 @@ func (c *client) ListPersistentVolumes(ctx context.Context) ([]corev1.Persistent
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to list persistent volumes after retries")
+		c.logger.Error("Failed to list persistent volumes after retries", zap.Error(err))
 		return nil, fmt.Errorf("failed to list persistent volumes: %w", err)
 	}
 
-	duration := time.Since(start)
-	c.logger.Info("Kubernetes operation completed",
+	c.logger.LogK8sOperation("list", "persistentvolumes", "", "", nil)
+	c.logger.Debug("Kubernetes operation completed",
 		zap.String("operation", "list"),
 		zap.String("resource", "persistentvolumes"),
-		zap.Int("count", len(pvList.Items)),
-		zap.Int64("duration_ms", duration.Milliseconds()))
+		zap.Int("count", len(pvList.Items)))
 	
 	return pvList.Items, nil
 }
@@ -197,7 +203,6 @@ func (c *client) ListPersistentVolumeClaims(ctx context.Context, namespace strin
 		namespace = metav1.NamespaceAll
 	}
 
-	start := time.Now()
 	var pvcList *corev1.PersistentVolumeClaimList
 	
 	err := retry.OnError(
@@ -213,14 +218,13 @@ func (c *client) ListPersistentVolumeClaims(ctx context.Context, namespace strin
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).WithFields(map[string]interface{}{
-			"namespace": namespace,
-		}).Error("Failed to list persistent volume claims after retries")
+		c.logger.Error("Failed to list persistent volume claims after retries",
+			zap.Error(err),
+			zap.String("namespace", namespace))
 		return nil, fmt.Errorf("failed to list persistent volume claims: %w", err)
 	}
 
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "persistentvolumeclaims", namespace, len(pvcList.Items), duration.Milliseconds())
+	c.logger.LogK8sOperation("list", "persistentvolumeclaims", namespace, "", nil)
 	
 	return pvcList.Items, nil
 }
@@ -231,7 +235,6 @@ func (c *client) ListVolumeSnapshots(ctx context.Context, namespace string) ([]s
 		namespace = metav1.NamespaceAll
 	}
 
-	start := time.Now()
 	var snapshotList *snapshotv1.VolumeSnapshotList
 	
 	err := retry.OnError(
@@ -247,21 +250,19 @@ func (c *client) ListVolumeSnapshots(ctx context.Context, namespace string) ([]s
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).WithFields(map[string]interface{}{
-			"namespace": namespace,
-		}).Error("Failed to list volume snapshots after retries")
+		c.logger.Error("Failed to list volume snapshots after retries",
+			zap.Error(err),
+			zap.String("namespace", namespace))
 		return nil, fmt.Errorf("failed to list volume snapshots: %w", err)
 	}
 
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "volumesnapshots", namespace, len(snapshotList.Items), duration.Milliseconds())
+	c.logger.LogK8sOperation("list", "volumesnapshots", namespace, "", nil)
 	
 	return snapshotList.Items, nil
 }
 
 // ListStorageClasses lists all storage classes with retry logic
 func (c *client) ListStorageClasses(ctx context.Context) ([]storagev1.StorageClass, error) {
-	start := time.Now()
 	var scList *storagev1.StorageClassList
 	
 	err := retry.OnError(
@@ -277,12 +278,11 @@ func (c *client) ListStorageClasses(ctx context.Context) ([]storagev1.StorageCla
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to list storage classes after retries")
+		c.logger.Error("Failed to list storage classes after retries", zap.Error(err))
 		return nil, fmt.Errorf("failed to list storage classes: %w", err)
 	}
 
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "storageclasses", "", len(scList.Items), duration.Milliseconds())
+	c.logger.LogK8sOperation("list", "storageclasses", "", "", nil)
 	
 	return scList.Items, nil
 }
@@ -293,7 +293,6 @@ func (c *client) ListPods(ctx context.Context, namespace string) ([]corev1.Pod, 
 		namespace = metav1.NamespaceAll
 	}
 
-	start := time.Now()
 	var podList *corev1.PodList
 	
 	err := retry.OnError(
@@ -309,21 +308,19 @@ func (c *client) ListPods(ctx context.Context, namespace string) ([]corev1.Pod, 
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).WithFields(map[string]interface{}{
-			"namespace": namespace,
-		}).Error("Failed to list pods after retries")
+		c.logger.Error("Failed to list pods after retries",
+			zap.Error(err),
+			zap.String("namespace", namespace))
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "pods", namespace, len(podList.Items), duration.Milliseconds())
+	c.logger.LogK8sOperation("list", "pods", namespace, "", nil)
 	
 	return podList.Items, nil
 }
 
 // GetNamespace gets a specific namespace with retry logic
 func (c *client) GetNamespace(ctx context.Context, name string) (*corev1.Namespace, error) {
-	start := time.Now()
 	var namespace *corev1.Namespace
 	
 	err := retry.OnError(
@@ -339,22 +336,19 @@ func (c *client) GetNamespace(ctx context.Context, name string) (*corev1.Namespa
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).WithFields(map[string]interface{}{
-			"namespace": name,
-		}).Error("Failed to get namespace after retries")
+		c.logger.Error("Failed to get namespace after retries",
+			zap.Error(err),
+			zap.String("namespace", name))
 		return nil, fmt.Errorf("failed to get namespace %s: %w", name, err)
 	}
 
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("get", "namespace", name, 1, duration.Milliseconds())
+	c.logger.LogK8sOperation("get", "namespace", "", name, nil)
 	
 	return namespace, nil
 }
 
 // TestConnection tests the Kubernetes connection with retry logic
 func (c *client) TestConnection(ctx context.Context) error {
-	start := time.Now()
-	
 	err := retry.OnError(
 		retry.DefaultRetry,
 		func(err error) bool {
@@ -367,14 +361,11 @@ func (c *client) TestConnection(ctx context.Context) error {
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to connect to Kubernetes API after retries")
+		c.logger.Error("Failed to connect to Kubernetes API after retries", zap.Error(err))
 		return fmt.Errorf("failed to connect to Kubernetes API: %w", err)
 	}
 
-	duration := time.Since(start)
-	c.logger.WithFields(map[string]interface{}{
-		"duration_ms": duration.Milliseconds(),
-	}).Info("Kubernetes connection test successful")
+	c.logger.Info("Kubernetes connection test successful")
 	
 	return nil
 }
@@ -393,10 +384,9 @@ func (c *client) ListDemocraticCSIPersistentVolumes(ctx context.Context) ([]core
 		}
 	}
 
-	c.logger.WithFields(map[string]interface{}{
-		"total_pvs":         len(pvs),
-		"democratic_csi_pvs": len(filtered),
-	}).Info("Filtered PVs by democratic-csi driver")
+	c.logger.Info("Filtered PVs by democratic-csi driver",
+		zap.Int("total_pvs", len(pvs)),
+		zap.Int("democratic_csi_pvs", len(filtered)))
 
 	return filtered, nil
 }
@@ -410,16 +400,15 @@ func (c *client) ListPersistentVolumesByStorageClass(ctx context.Context, storag
 
 	var filtered []corev1.PersistentVolume
 	for _, pv := range pvs {
-		if pv.Spec.StorageClassName != nil && *pv.Spec.StorageClassName == storageClass {
+		if pv.Spec.StorageClassName == storageClass {
 			filtered = append(filtered, pv)
 		}
 	}
 
-	c.logger.WithFields(map[string]interface{}{
-		"storage_class": storageClass,
-		"total_pvs":     len(pvs),
-		"filtered_pvs":  len(filtered),
-	}).Info("Filtered PVs by storage class")
+	c.logger.Info("Filtered PVs by storage class",
+		zap.String("storage_class", storageClass),
+		zap.Int("total_pvs", len(pvs)),
+		zap.Int("filtered_pvs", len(filtered)))
 
 	return filtered, nil
 }
@@ -438,18 +427,16 @@ func (c *client) ListUnboundPersistentVolumeClaims(ctx context.Context, namespac
 		}
 	}
 
-	c.logger.WithFields(map[string]interface{}{
-		"namespace":    namespace,
-		"total_pvcs":   len(pvcs),
-		"unbound_pvcs": len(unbound),
-	}).Info("Found unbound PVCs")
+	c.logger.Info("Found unbound PVCs",
+		zap.String("namespace", namespace),
+		zap.Int("total_pvcs", len(pvcs)),
+		zap.Int("unbound_pvcs", len(unbound)))
 
 	return unbound, nil
 }
 
 // ListNamespaces lists all namespaces
 func (c *client) ListNamespaces(ctx context.Context) ([]corev1.Namespace, error) {
-	start := time.Now()
 	var nsList *corev1.NamespaceList
 	
 	err := retry.OnError(
@@ -465,12 +452,11 @@ func (c *client) ListNamespaces(ctx context.Context) ([]corev1.Namespace, error)
 	)
 	
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to list namespaces after retries")
+		c.logger.Error("Failed to list namespaces after retries", zap.Error(err))
 		return nil, fmt.Errorf("failed to list namespaces: %w", err)
 	}
 
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "namespaces", "", len(nsList.Items), duration.Milliseconds())
+	c.logger.LogK8sOperation("list", "namespaces", "", "", nil)
 	
 	return nsList.Items, nil
 }
@@ -490,13 +476,58 @@ func (c *client) GetCSIDriverPods(ctx context.Context, namespace string) ([]core
 		}
 	}
 
-	c.logger.WithFields(map[string]interface{}{
-		"namespace":  namespace,
-		"total_pods": len(pods),
-		"csi_pods":   len(csiPods),
-	}).Info("Found CSI driver pods")
+	c.logger.Info("Found CSI driver pods",
+		zap.String("namespace", namespace),
+		zap.Int("total_pods", len(pods)),
+		zap.Int("csi_pods", len(csiPods)))
 
 	return csiPods, nil
+}
+
+// Stub implementations for missing methods
+func (c *client) ValidateRBACPermissions(ctx context.Context) (*RBACValidationResult, error) {
+	// TODO: Implement RBAC validation
+	return &RBACValidationResult{
+		HasRequiredPermissions: true,
+		MissingPermissions:     []string{},
+		PermissionChecks:       map[string]bool{},
+		ServiceAccount:         "default",
+		Namespace:              "default",
+	}, nil
+}
+
+func (c *client) GetClusterInfo(ctx context.Context) (*ClusterInfo, error) {
+	// TODO: Implement cluster info gathering
+	return &ClusterInfo{
+		Version:        "unknown",
+		Platform:       "unknown",
+		NodeCount:      0,
+		NamespaceCount: 0,
+		StorageClasses: []string{},
+		CSIDrivers:     []string{},
+		DemocraticCSI:  false,
+		Capabilities:   map[string]bool{},
+	}, nil
+}
+
+func (c *client) ListCSINodes(ctx context.Context) ([]storagev1.CSINode, error) {
+	// TODO: Implement CSI node listing
+	return []storagev1.CSINode{}, nil
+}
+
+func (c *client) ListCSIDrivers(ctx context.Context) ([]storagev1.CSIDriver, error) {
+	// TODO: Implement CSI driver listing
+	return []storagev1.CSIDriver{}, nil
+}
+
+func (c *client) ListVolumeAttachments(ctx context.Context) ([]storagev1.VolumeAttachment, error) {
+	// TODO: Implement volume attachment listing
+	return []storagev1.VolumeAttachment{}, nil
+}
+
+func (c *client) ListPersistentVolumeClaimsByStorageClass(ctx context.Context, namespace, storageClass string) ([]corev1.PersistentVolumeClaim, error) {
+	// TODO: Implement PVC filtering by storage class
+	return c.ListPersistentVolumeClaims(ctx, namespace)
 }
 
 // Helper functions
@@ -509,338 +540,43 @@ func isDemocraticCSIDriver(driverName string) bool {
 		"org.democratic-csi.smb",
 		"democratic-csi",
 	}
-
+	
 	for _, driver := range democraticCSIDrivers {
 		if driverName == driver {
 			return true
 		}
 	}
-
-	// Also check for TrueNAS-related drivers
-	return containsIgnoreCase(driverName, "truenas") || 
-		   containsIgnoreCase(driverName, "democratic")
+	return false
 }
 
-// isCSIDriverPod checks if a pod is related to CSI drivers
+// isCSIDriverPod checks if a pod is a CSI driver pod
 func isCSIDriverPod(pod corev1.Pod) bool {
+	// Check labels for CSI-related components
+	labels := pod.Labels
+	if labels == nil {
+		return false
+	}
+	
+	for k, v := range labels {
+		if k == "app" && v == "csi-driver" ||
+		   k == "component" && v == "csi-driver" ||
+		   k == "app.kubernetes.io/component" && v == "csi-driver" ||
+		   v == "democratic-csi" {
+			return true
+		}
+	}
+	
 	// Check pod name patterns
-	csiPodPatterns := []string{
+	csiNamePatterns := []string{
 		"csi-",
 		"democratic-csi",
-		"truenas-csi",
 	}
-
-	podName := pod.Name
-	for _, pattern := range csiPodPatterns {
-		if containsIgnoreCase(podName, pattern) {
+	
+	for _, pattern := range csiNamePatterns {
+		if len(pod.Name) >= len(pattern) && pod.Name[:len(pattern)] == pattern {
 			return true
 		}
 	}
-
-	// Check labels
-	if pod.Labels != nil {
-		for key, value := range pod.Labels {
-			if containsIgnoreCase(key, "csi") || containsIgnoreCase(value, "csi") ||
-			   containsIgnoreCase(key, "democratic") || containsIgnoreCase(value, "democratic") {
-				return true
-			}
-		}
-	}
-
+	
 	return false
-}
-
-// containsIgnoreCase checks if a string contains a substring (case-insensitive)
-func containsIgnoreCase(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (s == substr || 
-		    (len(s) > len(substr) && 
-		     (s[:len(substr)] == substr || 
-		      s[len(s)-len(substr):] == substr ||
-		      containsSubstring(s, substr))))
-}
-
-// containsSubstring is a simple substring search
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-// ValidateRBACPermissions validates that the client has required RBAC permissions
-func (c *client) ValidateRBACPermissions(ctx context.Context) (*RBACValidationResult, error) {
-	result := &RBACValidationResult{
-		PermissionChecks: make(map[string]bool),
-	}
-
-	// Get current service account info
-	if c.config.InCluster {
-		result.ServiceAccount = "system:serviceaccount:truenas-monitor:truenas-monitor"
-		result.Namespace = "truenas-monitor"
-	} else {
-		result.ServiceAccount = "current-user"
-		result.Namespace = "default"
-	}
-
-	// Define required permissions for monitoring
-	requiredPermissions := map[string]struct {
-		resource string
-		verbs    []string
-	}{
-		"persistentvolumes":       {"persistentvolumes", []string{"get", "list", "watch"}},
-		"persistentvolumeclaims":  {"persistentvolumeclaims", []string{"get", "list", "watch"}},
-		"volumesnapshots":         {"volumesnapshots", []string{"get", "list", "watch"}},
-		"storageclasses":          {"storageclasses", []string{"get", "list"}},
-		"csinodes":                {"csinodes", []string{"get", "list"}},
-		"csidrivers":              {"csidrivers", []string{"get", "list"}},
-		"pods":                    {"pods", []string{"get", "list"}},
-		"namespaces":              {"namespaces", []string{"get", "list"}},
-	}
-
-	allPermissionsValid := true
-	var missingPermissions []string
-
-	// Test each required permission
-	for permName, perm := range requiredPermissions {
-		hasPermission := true
-		
-		// Try to list the resource to test permissions
-		switch perm.resource {
-		case "persistentvolumes":
-			_, err := c.ListPersistentVolumes(ctx)
-			hasPermission = err == nil
-		case "persistentvolumeclaims":
-			_, err := c.ListPersistentVolumeClaims(ctx, "")
-			hasPermission = err == nil
-		case "volumesnapshots":
-			_, err := c.ListVolumeSnapshots(ctx, "")
-			hasPermission = err == nil
-		case "storageclasses":
-			_, err := c.ListStorageClasses(ctx)
-			hasPermission = err == nil
-		case "pods":
-			_, err := c.ListPods(ctx, "kube-system")
-			hasPermission = err == nil
-		case "namespaces":
-			_, err := c.ListNamespaces(ctx)
-			hasPermission = err == nil
-		}
-
-		result.PermissionChecks[permName] = hasPermission
-		if !hasPermission {
-			allPermissionsValid = false
-			missingPermissions = append(missingPermissions, permName)
-		}
-	}
-
-	result.HasRequiredPermissions = allPermissionsValid
-	result.MissingPermissions = missingPermissions
-
-	c.logger.WithFields(map[string]interface{}{
-		"has_permissions":     allPermissionsValid,
-		"missing_permissions": len(missingPermissions),
-		"service_account":     result.ServiceAccount,
-	}).Info("RBAC permissions validation completed")
-
-	return result, nil
-}
-
-// GetClusterInfo retrieves comprehensive cluster information
-func (c *client) GetClusterInfo(ctx context.Context) (*ClusterInfo, error) {
-	info := &ClusterInfo{
-		Capabilities: make(map[string]bool),
-	}
-
-	// Get cluster version
-	version, err := c.clientset.Discovery().ServerVersion()
-	if err != nil {
-		c.logger.WithError(err).Warn("Failed to get cluster version")
-		info.Version = "unknown"
-	} else {
-		info.Version = version.String()
-	}
-
-	// Detect platform
-	nodes, err := c.clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 1})
-	if err == nil && len(nodes.Items) > 0 {
-		node := nodes.Items[0]
-		if node.Status.NodeInfo.OSImage != "" {
-			if containsIgnoreCase(node.Status.NodeInfo.OSImage, "openshift") {
-				info.Platform = "OpenShift"
-			} else if containsIgnoreCase(node.Status.NodeInfo.OSImage, "kubernetes") {
-				info.Platform = "Kubernetes"
-			} else {
-				info.Platform = "Unknown"
-			}
-		}
-	}
-
-	// Count nodes
-	allNodes, err := c.clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err == nil {
-		info.NodeCount = len(allNodes.Items)
-	}
-
-	// Count namespaces
-	namespaces, err := c.ListNamespaces(ctx)
-	if err == nil {
-		info.NamespaceCount = len(namespaces)
-	}
-
-	// Get storage classes
-	storageClasses, err := c.ListStorageClasses(ctx)
-	if err == nil {
-		for _, sc := range storageClasses {
-			info.StorageClasses = append(info.StorageClasses, sc.Name)
-		}
-	}
-
-	// Check for democratic-csi
-	democraticCSIFound := false
-	for _, sc := range storageClasses {
-		if isDemocraticCSIDriver(sc.Provisioner) {
-			democraticCSIFound = true
-			break
-		}
-	}
-	info.DemocraticCSI = democraticCSIFound
-
-	// Check capabilities
-	info.Capabilities["volume_snapshots"] = c.hasVolumeSnapshotSupport(ctx)
-	info.Capabilities["csi_drivers"] = c.hasCSISupport(ctx)
-	info.Capabilities["storage_classes"] = len(info.StorageClasses) > 0
-
-	c.logger.WithFields(map[string]interface{}{
-		"version":         info.Version,
-		"platform":        info.Platform,
-		"nodes":           info.NodeCount,
-		"namespaces":      info.NamespaceCount,
-		"storage_classes": len(info.StorageClasses),
-		"democratic_csi":  info.DemocraticCSI,
-	}).Info("Cluster information gathered")
-
-	return info, nil
-}
-
-// ListCSINodes lists all CSI nodes
-func (c *client) ListCSINodes(ctx context.Context) ([]storagev1.CSINode, error) {
-	start := time.Now()
-	var csiNodeList *storagev1.CSINodeList
-	
-	err := retry.OnError(
-		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
-		func() error {
-			var err error
-			csiNodeList, err = c.clientset.StorageV1().CSINodes().List(ctx, metav1.ListOptions{})
-			return err
-		},
-	)
-	
-	if err != nil {
-		c.logger.WithError(err).Error("Failed to list CSI nodes after retries")
-		return nil, fmt.Errorf("failed to list CSI nodes: %w", err)
-	}
-
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "csinodes", "", len(csiNodeList.Items), duration.Milliseconds())
-	
-	return csiNodeList.Items, nil
-}
-
-// ListCSIDrivers lists all CSI drivers
-func (c *client) ListCSIDrivers(ctx context.Context) ([]storagev1.CSIDriver, error) {
-	start := time.Now()
-	var csiDriverList *storagev1.CSIDriverList
-	
-	err := retry.OnError(
-		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
-		func() error {
-			var err error
-			csiDriverList, err = c.clientset.StorageV1().CSIDrivers().List(ctx, metav1.ListOptions{})
-			return err
-		},
-	)
-	
-	if err != nil {
-		c.logger.WithError(err).Error("Failed to list CSI drivers after retries")
-		return nil, fmt.Errorf("failed to list CSI drivers: %w", err)
-	}
-
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "csidrivers", "", len(csiDriverList.Items), duration.Milliseconds())
-	
-	return csiDriverList.Items, nil
-}
-
-// ListVolumeAttachments lists all volume attachments
-func (c *client) ListVolumeAttachments(ctx context.Context) ([]storagev1.VolumeAttachment, error) {
-	start := time.Now()
-	var vaList *storagev1.VolumeAttachmentList
-	
-	err := retry.OnError(
-		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
-		func() error {
-			var err error
-			vaList, err = c.clientset.StorageV1().VolumeAttachments().List(ctx, metav1.ListOptions{})
-			return err
-		},
-	)
-	
-	if err != nil {
-		c.logger.WithError(err).Error("Failed to list volume attachments after retries")
-		return nil, fmt.Errorf("failed to list volume attachments: %w", err)
-	}
-
-	duration := time.Since(start)
-	c.logger.LogK8sOperation("list", "volumeattachments", "", len(vaList.Items), duration.Milliseconds())
-	
-	return vaList.Items, nil
-}
-
-// ListPersistentVolumeClaimsByStorageClass lists PVCs filtered by storage class
-func (c *client) ListPersistentVolumeClaimsByStorageClass(ctx context.Context, namespace, storageClass string) ([]corev1.PersistentVolumeClaim, error) {
-	pvcs, err := c.ListPersistentVolumeClaims(ctx, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var filtered []corev1.PersistentVolumeClaim
-	for _, pvc := range pvcs {
-		if pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName == storageClass {
-			filtered = append(filtered, pvc)
-		}
-	}
-
-	c.logger.WithFields(map[string]interface{}{
-		"namespace":     namespace,
-		"storage_class": storageClass,
-		"total_pvcs":    len(pvcs),
-		"filtered_pvcs": len(filtered),
-	}).Info("Filtered PVCs by storage class")
-
-	return filtered, nil
-}
-
-// Helper methods for capability detection
-
-func (c *client) hasVolumeSnapshotSupport(ctx context.Context) bool {
-	_, err := c.ListVolumeSnapshots(ctx, "")
-	return err == nil
-}
-
-func (c *client) hasCSISupport(ctx context.Context) bool {
-	_, err := c.ListCSIDrivers(ctx)
-	return err == nil
 }

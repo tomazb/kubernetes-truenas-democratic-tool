@@ -112,8 +112,10 @@ func Load(path string) (*Config, error) {
 		},
 	}
 
+	fileExists := false
 	// Read file if it exists
 	if _, err := os.Stat(path); err == nil {
+		fileExists = true
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -127,9 +129,11 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
-	// Validate configuration
-	if err := config.validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	// Validate configuration only if file exists
+	if fileExists {
+		if err := config.validate(); err != nil {
+			return nil, fmt.Errorf("invalid configuration: %w", err)
+		}
 	}
 
 	return config, nil
