@@ -9,6 +9,76 @@ import yaml
 from .exceptions import ConfigurationError
 
 
+class Config:
+    """Configuration class for TrueNAS Storage Monitor."""
+    
+    def __init__(self, config_path: Optional[str] = None):
+        """Initialize configuration.
+        
+        Args:
+            config_path: Path to configuration file
+        """
+        self.data = load_config(config_path)
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value by key.
+        
+        Args:
+            key: Configuration key (supports dot notation)
+            default: Default value if key not found
+            
+        Returns:
+            Configuration value
+        """
+        keys = key.split('.')
+        value = self.data
+        
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        
+        return value
+    
+    def set(self, key: str, value: Any) -> None:
+        """Set configuration value by key.
+        
+        Args:
+            key: Configuration key (supports dot notation)
+            value: Value to set
+        """
+        keys = key.split('.')
+        config = self.data
+        
+        for k in keys[:-1]:
+            if k not in config:
+                config[k] = {}
+            config = config[k]
+        
+        config[keys[-1]] = value
+    
+    @property
+    def truenas(self) -> Dict[str, Any]:
+        """Get TrueNAS configuration."""
+        return self.get('truenas', {})
+    
+    @property
+    def openshift(self) -> Dict[str, Any]:
+        """Get OpenShift configuration."""
+        return self.get('openshift', {})
+    
+    @property
+    def monitoring(self) -> Dict[str, Any]:
+        """Get monitoring configuration."""
+        return self.get('monitoring', {})
+    
+    @property
+    def logging(self) -> Dict[str, Any]:
+        """Get logging configuration."""
+        return self.get('logging', {})
+
+
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """Load configuration from file.
     

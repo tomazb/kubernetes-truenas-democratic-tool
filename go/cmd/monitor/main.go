@@ -15,6 +15,7 @@ import (
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/monitor"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
+	"go.uber.org/zap"
 )
 
 var (
@@ -39,10 +40,10 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.WithComponent("monitor-main").WithFields(map[string]interface{}{
-		"version": "0.1.0",
-		"config":  *configPath,
-	}).Info("Starting TrueNAS Monitor Service")
+	logger.Info("Starting TrueNAS Monitor Service",
+		zap.String("version", "0.1.0"),
+		zap.String("config", *configPath),
+	)
 
 	// Load configuration
 	cfg, err := config.Load(*configPath)
@@ -51,28 +52,49 @@ func main() {
 	}
 
 	// Initialize Kubernetes client
-	k8sClient, err := k8s.NewClient(cfg.Kubernetes)
+	k8sClient, err := k8s.NewClient(k8s.Config{
+		Kubeconfig: cfg.Kubernetes.Kubeconfig,
+		Namespace:  cfg.Kubernetes.Namespace,
+		InCluster:  cfg.Kubernetes.InCluster,
+	})
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to initialize Kubernetes client")
 	}
 
 	// Initialize TrueNAS client
-	truenasClient, err := truenas.NewClient(cfg.TrueNAS)
+	timeout, err := time.ParseDuration(cfg.TrueNAS.Timeout)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed to parse TrueNAS timeout")
+	}
+	
+	truenasClient, err := truenas.NewClient(truenas.Config{
+		URL:      cfg.TrueNAS.URL,
+		Username: cfg.TrueNAS.Username,
+		Password: cfg.TrueNAS.Password,
+		Timeout:  timeout,
+	})
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to initialize TrueNAS client")
 	}
 
 	// Initialize metrics exporter
-	metricsExporter := metrics.NewExporter(cfg.Metrics)
+	metricsExporter := metrics.NewExporter(metrics.Config{
+		Enabled: cfg.Metrics.Enabled,
+		Port:    cfg.Metrics.Port,
+		Path:    cfg.Metrics.Path,
+	})
 
 	// Initialize monitor service
-	monitorService := monitor.NewService(monitor.Config{
+	monitorService, err := monitor.NewService(monitor.Config{
 		K8sClient:       k8sClient,
 		TruenasClient:   truenasClient,
 		MetricsExporter: metricsExporter,
 		Logger:          logger,
 		ScanInterval:    cfg.Monitor.ScanInterval,
 	})
+	if err != nil {
+		logger.WithError(err).Fatal("Failed to create monitor service")
+	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,8 +129,9 @@ func main() {
 
 func initLogger(level string) (*logging.Logger, error) {
 	config := logging.Config{
-		Level:  level,
-		Format: "json",
+		Level:       level,
+		Development: false,
+		Encoding:    "json",
 	}
 	
 	return logging.NewLogger(config)

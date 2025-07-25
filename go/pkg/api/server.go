@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/monitor"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
@@ -60,7 +61,7 @@ func NewServer(config Config) (*Server, error) {
 		K8sClient:       config.K8sClient,
 		TruenasClient:   config.TruenasClient,
 		MetricsExporter: nil, // API server doesn't need metrics exporter
-		Logger:          config.Logger.WithComponent("monitor-service"),
+		Logger:          &logging.Logger{Logger: config.Logger},
 		ScanInterval:    5 * time.Minute,
 	})
 	if err != nil {
@@ -193,14 +194,12 @@ func (s *Server) readyHandler(c *gin.Context) {
 
 // listOrphansHandler handles requests for all orphaned resources
 func (s *Server) listOrphansHandler(c *gin.Context) {
-	ctx := c.Request.Context()
-
 	// Get query parameters
 	namespace := c.Query("namespace")
 	ageThreshold := c.DefaultQuery("age_threshold", "24h")
 
 	// Parse age threshold
-	threshold, err := time.ParseDuration(ageThreshold)
+	_, err := time.ParseDuration(ageThreshold)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid age_threshold format",

@@ -3,13 +3,13 @@ package truenas
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
+	"go.uber.org/zap"
 )
 
 // Client represents a TrueNAS client
@@ -118,9 +118,9 @@ func NewClient(config Config) (Client, error) {
 
 	// Initialize logger
 	logger, err := logging.NewLogger(logging.Config{
-		Level:     "info",
-		Format:    "json",
-		Component: "truenas-client",
+		Level:       "info",
+		Encoding:    "json",
+		Development: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
@@ -160,15 +160,14 @@ func (c *client) ListVolumes(ctx context.Context) ([]Volume, error) {
 		Get("/api/v2.0/pool/dataset")
 
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to list TrueNAS datasets")
+		c.logger.Error("Failed to list TrueNAS datasets", zap.Error(err))
 		return nil, fmt.Errorf("failed to list volumes: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		c.logger.WithFields(map[string]interface{}{
-			"status_code": resp.StatusCode(),
-			"response":    resp.String(),
-		}).Error("TrueNAS API returned error status")
+		c.logger.Error("TrueNAS API returned error status",
+			zap.Int("status_code", resp.StatusCode()),
+			zap.String("response", resp.String()))
 		return nil, fmt.Errorf("TrueNAS API returned status %d: %s", resp.StatusCode(), resp.String())
 	}
 
@@ -205,7 +204,10 @@ func (c *client) ListVolumes(ctx context.Context) ([]Volume, error) {
 	}
 
 	duration := time.Since(start)
-	c.logger.LogTrueNASOperation("list", "datasets", len(result), duration.Milliseconds())
+	c.logger.LogTrueNASOperation("list", "datasets", http.StatusOK, nil)
+	c.logger.Debug("TrueNAS list volumes completed",
+		zap.Int("count", len(result)),
+		zap.Duration("duration", duration))
 
 	return result, nil
 }
@@ -234,15 +236,14 @@ func (c *client) ListSnapshots(ctx context.Context) ([]Snapshot, error) {
 		Get("/api/v2.0/zfs/snapshot")
 
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to list TrueNAS snapshots")
+		c.logger.Error("Failed to list TrueNAS snapshots", zap.Error(err))
 		return nil, fmt.Errorf("failed to list snapshots: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		c.logger.WithFields(map[string]interface{}{
-			"status_code": resp.StatusCode(),
-			"response":    resp.String(),
-		}).Error("TrueNAS API returned error status for snapshots")
+		c.logger.Error("TrueNAS API returned error status for snapshots",
+			zap.Int("status_code", resp.StatusCode()),
+			zap.String("response", resp.String()))
 		return nil, fmt.Errorf("TrueNAS API returned status %d: %s", resp.StatusCode(), resp.String())
 	}
 
@@ -272,7 +273,10 @@ func (c *client) ListSnapshots(ctx context.Context) ([]Snapshot, error) {
 	}
 
 	duration := time.Since(start)
-	c.logger.LogTrueNASOperation("list", "snapshots", len(result), duration.Milliseconds())
+	c.logger.LogTrueNASOperation("list", "snapshots", http.StatusOK, nil)
+	c.logger.Debug("TrueNAS list snapshots completed",
+		zap.Int("count", len(result)),
+		zap.Duration("duration", duration))
 
 	return result, nil
 }
@@ -287,10 +291,14 @@ func (c *client) ListPools(ctx context.Context) ([]Pool, error) {
 		Get("/api/v2.0/pool")
 
 	if err != nil {
+		c.logger.Error("Failed to list pools", zap.Error(err))
 		return nil, fmt.Errorf("failed to list pools: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
+		c.logger.Error("TrueNAS API returned error status for pools",
+			zap.Int("status_code", resp.StatusCode()),
+			zap.String("response", resp.String()))
 		return nil, fmt.Errorf("TrueNAS API returned status %d: %s", resp.StatusCode(), resp.String())
 	}
 
@@ -307,10 +315,14 @@ func (c *client) GetSystemInfo(ctx context.Context) (*SystemInfo, error) {
 		Get("/api/v2.0/system/info")
 
 	if err != nil {
+		c.logger.Error("Failed to get system info", zap.Error(err))
 		return nil, fmt.Errorf("failed to get system info: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
+		c.logger.Error("TrueNAS API returned error status for system info",
+			zap.Int("status_code", resp.StatusCode()),
+			zap.String("response", resp.String()))
 		return nil, fmt.Errorf("TrueNAS API returned status %d: %s", resp.StatusCode(), resp.String())
 	}
 
@@ -324,12 +336,17 @@ func (c *client) TestConnection(ctx context.Context) error {
 		Get("/api/v2.0/system/info")
 
 	if err != nil {
+		c.logger.Error("Failed to connect to TrueNAS", zap.Error(err))
 		return fmt.Errorf("failed to connect to TrueNAS: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
+		c.logger.Error("TrueNAS connection test failed",
+			zap.Int("status_code", resp.StatusCode()),
+			zap.String("response", resp.String()))
 		return fmt.Errorf("TrueNAS API returned status %d: %s", resp.StatusCode(), resp.String())
 	}
 
+	c.logger.Info("TrueNAS connection test successful")
 	return nil
 }
