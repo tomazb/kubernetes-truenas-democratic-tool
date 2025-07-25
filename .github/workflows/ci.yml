@@ -355,7 +355,7 @@ jobs:
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
     needs: [go-test, container-build, k8s-validation]
     steps:
       - name: Checkout code
@@ -427,7 +427,7 @@ jobs:
   performance-test:
     name: Performance Tests
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
     needs: [go-test, container-build]
     steps:
       - name: Checkout code
