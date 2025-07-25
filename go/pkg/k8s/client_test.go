@@ -37,7 +37,11 @@ func TestNewClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewClient(tt.config)
+			var config Config
+			if tt.config != nil {
+				config = *tt.config
+			}
+			_, err := NewClient(config)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewClient() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -94,14 +98,14 @@ func TestClient_GetPersistentVolumes(t *testing.T) {
 	// Create fake clientset
 	fakeClient := fake.NewSimpleClientset(pv1, pv2)
 	
-	client := &Client{
+	client := &client{
 		clientset: fakeClient,
-		config: &Config{
-			CSIDriver: "org.democratic-csi.nfs",
+		config: Config{
+			Namespace: "default",
 		},
 	}
 
-	pvs, err := client.GetPersistentVolumes(ctx)
+	pvs, err := client.ListPersistentVolumes(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
