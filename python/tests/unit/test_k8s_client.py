@@ -54,8 +54,8 @@ def test_get_storage_classes(mock_k8s_client):
         storage_classes = mock_k8s_client.get_storage_classes()
         
         assert len(storage_classes) == 1
-        assert storage_classes[0].name == "democratic-csi-nfs"
-        assert storage_classes[0].provisioner == "org.democratic-csi.nfs"
+        assert storage_classes[0]["name"] == "democratic-csi-nfs"
+        assert storage_classes[0]["provisioner"] == "org.democratic-csi.nfs"
 
 
 def test_get_persistent_volumes(mock_k8s_client):

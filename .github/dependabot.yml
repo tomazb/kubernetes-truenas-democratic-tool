@@ -46,7 +46,7 @@ updates:
 
   # Docker dependencies
   - package-ecosystem: "docker"
-    directory: "/deploy/docker"
+    directory: "/deploy/container"
     schedule:
       interval: "weekly"
     reviewers:
@@ -54,6 +54,20 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # Kubernetes manifests (for image updates)
+  - package-ecosystem: "docker"
+    directory: "/deploy/kubernetes"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - "tomazb"
+    labels:
+      - "dependencies"
+      - "kubernetes"
     commit-message:
       prefix: "chore"
       include: "scope"

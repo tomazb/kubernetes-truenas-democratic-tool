@@ -560,8 +560,59 @@ class Monitor:
         
         return result
     
+    def analyze_trends(self, days: int = 7) -> Dict[str, Any]:
+        """Analyze storage trends over a specified period.
+        
+        Args:
+            days: Number of days to analyze
+            
+        Returns:
+            Dictionary containing trend analysis
+        """
+        try:
+            # Get snapshot analysis from TrueNAS client
+            snapshot_analysis = {}
+            if self.truenas_client:
+                snapshot_analysis = self.truenas_client.analyze_snapshot_usage()
+            
+            # Basic trend analysis structure
+            result = {
+                "period_days": days,
+                "snapshot_analysis": {
+                    "total_snapshots": snapshot_analysis.get("total_snapshots", 0),
+                    "total_snapshot_size": snapshot_analysis.get("total_snapshot_size", 0),
+                    "average_snapshot_age_days": snapshot_analysis.get("average_snapshot_age_days", 0),
+                    "large_snapshots": snapshot_analysis.get("large_snapshots", []),
+                    "growth_trend": "stable"  # Default trend
+                },
+                "recommendations": snapshot_analysis.get("recommendations", [])
+            }
+            
+            # Determine growth trend based on snapshot age distribution
+            snapshots_by_age = snapshot_analysis.get("snapshots_by_age", {})
+            recent_snapshots = snapshots_by_age.get("last_24h", 0) + snapshots_by_age.get("last_week", 0)
+            old_snapshots = snapshots_by_age.get("older", 0)
+            
+            if recent_snapshots > old_snapshots:
+                result["snapshot_analysis"]["growth_trend"] = "increasing"
+            elif old_snapshots > recent_snapshots * 2:
+                result["snapshot_analysis"]["growth_trend"] = "decreasing"
+            
+            logger.info(f"Analyzed trends for {days} days")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to analyze trends: {e}")
+            return {
+                "period_days": days,
+                "snapshot_analysis": {
+                    "total_snapshots": 0,
+                    "growth_trend": "unknown"
+                },
+                "recommendations": []
+            }
+
     def start(self) -> None:
-        """Start the monitoring service."""
         logger.info("Monitor started")
     
     def stop(self) -> None:

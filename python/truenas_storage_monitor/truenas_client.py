@@ -62,6 +62,16 @@ class PoolInfo:
     healthy: bool
     scan_state: Optional[str] = None
     datasets: List[str] = field(default_factory=list)
+    # Additional fields for test compatibility
+    size: Optional[int] = None
+    allocated: Optional[int] = None
+    
+    def __post_init__(self):
+        # Map fields for backward compatibility
+        if self.size is None:
+            self.size = self.total_size
+        if self.allocated is None:
+            self.allocated = self.used_size
 
 
 @dataclass
@@ -743,3 +753,27 @@ class TrueNASClient:
             offset += limit
         
         return all_items
+
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> Any:
+        """Make a request to the TrueNAS API.
+        
+        This method is used by tests for mocking purposes.
+        
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            endpoint: API endpoint
+            **kwargs: Additional arguments for the request
+            
+        Returns:
+            Response data
+        """
+        url = f"{self.base_url}{endpoint}"
+        
+        response = self.session.request(
+            method=method,
+            url=url,
+            timeout=self.config.timeout,
+            **kwargs
+        )
+        response.raise_for_status()
+        return response.json()

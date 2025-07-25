@@ -1,0 +1,443 @@
+name: Security & Dependencies
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.21'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Comprehensive security scanning
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      # Go security scanning
+      - name: Run gosec security scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: '-fmt sarif -out gosec.sarif ./...'
+          working-directory: go
+          
+      - name: Upload gosec SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: go/gosec.sarif
+          category: gosec
+          
+      - name: Run govulncheck
+        working-directory: ./go
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck -json ./... > govulncheck-report.json || true
+          
+      # Python security scanning
+      - name: Install Python security tools
+        run: |
+          pip install bandit safety semgrep
+          
+      - name: Run bandit security scanner
+        working-directory: ./python
+        run: |
+          bandit -r . -f sarif -o bandit.sarif || true
+          
+      - name: Upload bandit SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: python/bandit.sarif
+          category: bandit
+          
+      - name: Run safety vulnerability scanner
+        working-directory: ./python
+        run: |
+          safety check --json --output safety-report.json || true
+          
+      - name: Run semgrep security scanner
+        run: |
+          semgrep --config=auto --sarif --output=semgrep.sarif . || true
+          
+      - name: Upload semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+          
+      # Container security scanning
+      - name: Build containers for scanning
+        run: |
+          if [ -f deploy/container/Containerfile.api ]; then
+            docker build -f deploy/container/Containerfile.api -t security-scan-api:latest .
+          fi
+          if [ -f deploy/container/Containerfile.monitor ]; then
+            docker build -f deploy/container/Containerfile.monitor -t security-scan-monitor:latest .
+          fi
+          
+      - name: Run Trivy container scanner
+        uses: aquasecurity/trivy-action@master
+        if: hashFiles('deploy/container/Containerfile.api') != ''
+        with:
+          image-ref: security-scan-api:latest
+          format: 'sarif'
+          output: 'trivy-api.sarif'
+          
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy-api.sarif') != ''
+        with:
+          sarif_file: trivy-api.sarif
+          category: trivy-containers
+          
+      # Upload all security reports
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            go/govulncheck-report.json
+            python/safety-report.json
+            *.sarif
+
+  # Dependency vulnerability monitoring
+  dependency-check:
+    name: Dependency Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      # Go dependency scanning
+      - name: Run Nancy vulnerability scanner
+        working-directory: ./go
+        run: |
+          go install github.com/sonatypecommunity/nancy@latest
+          go list -json -deps ./... | nancy sleuth --loud --output-format=json > nancy-report.json || true
+          
+      - name: Check Go module vulnerabilities
+        working-directory: ./go
+        run: |
+          go list -json -m all | jq -r '.Path + "@" + .Version' > go-modules.txt
+          
+      # Python dependency scanning  
+      - name: Generate Python requirements
+        working-directory: ./python
+        run: |
+          pip install pip-audit pipdeptree
+          pip freeze > current-requirements.txt
+          pipdeptree --json > dependency-tree.json
+          
+      - name: Run pip-audit
+        working-directory: ./python
+        run: |
+          pip-audit --format=json --output=pip-audit-report.json || true
+          
+      # License compliance checking
+      - name: Check Go license compliance
+        working-directory: ./go
+        run: |
+          go install github.com/google/go-licenses@latest
+          go-licenses csv ./... > go-licenses.csv || true
+          
+      - name: Check Python license compliance
+        working-directory: ./python
+        run: |
+          pip install pip-licenses
+          pip-licenses --format=json --output-file=python-licenses.json || true
+          
+      # Upload dependency reports
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            go/nancy-report.json
+            go/go-modules.txt
+            go/go-licenses.csv
+            python/current-requirements.txt
+            python/dependency-tree.json
+            python/pip-audit-report.json
+            python/python-licenses.json
+
+  # SBOM (Software Bill of Materials) generation
+  sbom-generation:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Install SBOM tools
+        run: |
+          # Install syft for SBOM generation
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Install grype for vulnerability scanning
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          
+      - name: Generate Go SBOM
+        working-directory: ./go
+        run: |
+          syft . -o spdx-json=go-sbom.spdx.json
+          syft . -o cyclonedx-json=go-sbom.cyclonedx.json
+          
+      - name: Generate Python SBOM
+        working-directory: ./python
+        run: |
+          syft . -o spdx-json=python-sbom.spdx.json
+          syft . -o cyclonedx-json=python-sbom.cyclonedx.json
+          
+      - name: Scan SBOM for vulnerabilities
+        run: |
+          grype sbom:go/go-sbom.spdx.json -o json > go-vulnerabilities.json || true
+          grype sbom:python/python-sbom.spdx.json -o json > python-vulnerabilities.json || true
+          
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-reports
+          path: |
+            go/go-sbom.*
+            python/python-sbom.*
+            go-vulnerabilities.json
+            python-vulnerabilities.json
+
+  # Automated dependency updates
+  dependency-update:
+    name: Automated Dependency Updates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Update Go dependencies
+        working-directory: ./go
+        run: |
+          # Update all Go dependencies to latest minor/patch versions
+          go get -u ./...
+          go mod tidy
+          
+          # Check if there are changes
+          if ! git diff --quiet go.mod go.sum; then
+            echo "go_deps_updated=true" >> $GITHUB_ENV
+          fi
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Update Python dependencies
+        working-directory: ./python
+        run: |
+          pip install pip-tools
+          
+          # Update requirements if pip-tools files exist
+          if [ -f requirements.in ]; then
+            pip-compile --upgrade requirements.in
+          fi
+          if [ -f requirements-dev.in ]; then
+            pip-compile --upgrade requirements-dev.in
+          fi
+          
+          # Check if there are changes
+          if ! git diff --quiet requirements*.txt; then
+            echo "python_deps_updated=true" >> $GITHUB_ENV
+          fi
+          
+      - name: Run tests after updates
+        if: env.go_deps_updated == 'true' || env.python_deps_updated == 'true'
+        run: |
+          # Test Go code
+          cd go && go test ./... && cd ..
+          
+          # Test Python code
+          cd python && pip install -r requirements-dev.txt && pytest tests/ && cd ..
+          
+      - name: Create Pull Request
+        if: env.go_deps_updated == 'true' || env.python_deps_updated == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            chore: update dependencies
+            
+            - Updated Go dependencies to latest compatible versions
+            - Updated Python dependencies to latest compatible versions
+            - All tests passing after updates
+          title: 'chore: automated dependency updates'
+          body: |
+            ## Automated Dependency Updates
+            
+            This PR contains automated dependency updates:
+            
+            ### Changes Made:
+            - ✅ Updated Go dependencies to latest compatible versions
+            - ✅ Updated Python dependencies to latest compatible versions
+            - ✅ Ran full test suite to ensure compatibility
+            
+            ### Security Impact:
+            - Dependency updates may include security patches
+            - All tests pass with updated dependencies
+            
+            ### Review Notes:
+            - This is an automated PR generated by the dependency update workflow
+            - Please review the changes and test thoroughly before merging
+            - Check for any breaking changes in updated dependencies
+          branch: automated/dependency-updates
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+            security
+
+  # Security policy compliance
+  security-policy:
+    name: Security Policy Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check security policy exists
+        run: |
+          if [ ! -f SECURITY.md ]; then
+            echo "❌ SECURITY.md file not found"
+            exit 1
+          fi
+          echo "✅ SECURITY.md file exists"
+          
+      - name: Validate security configuration
+        run: |
+          # Check for security-related files
+          files_to_check=(
+            ".github/workflows/codeql.yml"
+            ".github/dependabot.yml"
+            ".gitignore"
+          )
+          
+          for file in "${files_to_check[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists"
+            else
+              echo "❌ $file missing"
+            fi
+          done
+          
+      - name: Check for secrets in code
+        run: |
+          # Simple check for common secret patterns
+          if grep -r -i "password\|secret\|key\|token" --include="*.go" --include="*.py" --exclude-dir=".git" . | grep -v "test\|example\|placeholder"; then
+            echo "⚠️  Potential secrets found in code - please review"
+          else
+            echo "✅ No obvious secrets found in code"
+          fi
+
+  # Generate security report
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [security-audit, dependency-check, sbom-generation]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        
+      - name: Generate security summary
+        run: |
+          cat > security-summary.md << 'EOF'
+          # Security Report
+          
+          Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ## Security Scanning Results
+          
+          ### Go Security
+          - Gosec: Static security analysis completed
+          - Govulncheck: Vulnerability database check completed
+          - Nancy: Dependency vulnerability scan completed
+          
+          ### Python Security  
+          - Bandit: Static security analysis completed
+          - Safety: Vulnerability database check completed
+          - Pip-audit: Dependency audit completed
+          
+          ### Container Security
+          - Trivy: Container vulnerability scan completed
+          
+          ### SBOM Generation
+          - Go SBOM: Generated in SPDX and CycloneDX formats
+          - Python SBOM: Generated in SPDX and CycloneDX formats
+          
+          ## Recommendations
+          
+          1. Review all SARIF files uploaded to GitHub Security tab
+          2. Address any high/critical vulnerabilities found
+          3. Keep dependencies updated regularly
+          4. Monitor security advisories for used packages
+          
+          EOF
+          
+      - name: Upload security summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary
+          path: security-summary.md

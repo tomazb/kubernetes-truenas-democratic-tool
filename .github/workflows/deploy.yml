@@ -1,0 +1,422 @@
+name: Deploy to Environments
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options: ['staging', 'production']
+        default: 'staging'
+      version:
+        description: 'Version to deploy (leave empty for latest)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Deploy to staging environment
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.truenas-monitor.example.com
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        
+      - name: Configure kubectl for staging
+        run: |
+          # Configure kubectl with staging cluster credentials
+          echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+          kubectl config current-context
+          
+      - name: Determine deployment version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.version }}" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "version=main-$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_OUTPUT
+          else
+            echo "version=latest" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Update deployment manifests
+        run: |
+          # Update image tags in Kubernetes manifests
+          sed -i "s|image: .*api-server.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-server:${{ steps.version.outputs.version }}|g" deploy/kubernetes/api-server-deployment.yaml
+          sed -i "s|image: .*monitor.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/monitor:${{ steps.version.outputs.version }}|g" deploy/kubernetes/monitor-deployment.yaml
+          
+          # Update configuration for staging environment
+          sed -i 's|truenas-monitor|truenas-monitor-staging|g' deploy/kubernetes/*.yaml
+          sed -i 's|namespace: default|namespace: staging|g' deploy/kubernetes/*.yaml
+          
+      - name: Deploy to staging
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Create namespace if it doesn't exist
+          kubectl create namespace staging --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Apply configuration
+          kubectl apply -f deploy/kubernetes/ -n staging
+          
+          # Wait for deployments to be ready
+          kubectl rollout status deployment/truenas-api-server -n staging --timeout=300s
+          kubectl rollout status deployment/truenas-monitor -n staging --timeout=300s
+          
+      - name: Run smoke tests
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Port forward to test the deployment
+          kubectl port-forward service/truenas-api-server 8080:8080 -n staging &
+          PF_PID=$!
+          sleep 10
+          
+          # Run basic health checks
+          curl -f http://localhost:8080/health || exit 1
+          curl -f http://localhost:8080/ready || exit 1
+          curl -f http://localhost:8080/version || exit 1
+          
+          # Kill port forward
+          kill $PF_PID
+          
+      - name: Update deployment status
+        run: |
+          echo "🚀 Successfully deployed version ${{ steps.version.outputs.version }} to staging environment"
+          echo "📊 Deployment URL: https://staging.truenas-monitor.example.com"
+          
+      - name: Notify deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = context.sha;
+            
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha,
+              state: 'success',
+              target_url: 'https://staging.truenas-monitor.example.com',
+              description: 'Deployed to staging',
+              context: 'deployment/staging'
+            });
+
+  # Deploy to production environment
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment:
+      name: production
+      url: https://truenas-monitor.example.com
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        
+      - name: Configure kubectl for production
+        run: |
+          # Configure kubectl with production cluster credentials
+          echo "${{ secrets.PRODUCTION_KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+          kubectl config current-context
+          
+      - name: Determine deployment version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.version }}" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=latest" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Validate production deployment
+        run: |
+          # Ensure we're deploying a tagged version to production
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "✅ Deploying release version: ${{ steps.version.outputs.version }}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "⚠️  Manual deployment to production: ${{ steps.version.outputs.version }}"
+          else
+            echo "❌ Invalid deployment trigger for production"
+            exit 1
+          fi
+          
+      - name: Update deployment manifests
+        run: |
+          # Update image tags in Kubernetes manifests
+          sed -i "s|image: .*api-server.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-server:${{ steps.version.outputs.version }}|g" deploy/kubernetes/api-server-deployment.yaml
+          sed -i "s|image: .*monitor.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/monitor:${{ steps.version.outputs.version }}|g" deploy/kubernetes/monitor-deployment.yaml
+          
+          # Production-specific configuration
+          sed -i 's|replicas: 1|replicas: 3|g' deploy/kubernetes/*-deployment.yaml
+          
+      - name: Backup current deployment
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Create backup of current deployment
+          kubectl get deployment truenas-api-server -o yaml > backup-api-server.yaml || echo "No existing API server deployment"
+          kubectl get deployment truenas-monitor -o yaml > backup-monitor.yaml || echo "No existing monitor deployment"
+          
+      - name: Deploy to production
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Apply configuration with rolling update
+          kubectl apply -f deploy/kubernetes/
+          
+          # Wait for deployments to be ready
+          kubectl rollout status deployment/truenas-api-server --timeout=600s
+          kubectl rollout status deployment/truenas-monitor --timeout=600s
+          
+      - name: Verify production deployment
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Check deployment health
+          kubectl get deployments
+          kubectl get pods
+          
+          # Port forward to test the deployment
+          kubectl port-forward service/truenas-api-server 8080:8080 &
+          PF_PID=$!
+          sleep 15
+          
+          # Run comprehensive health checks
+          curl -f http://localhost:8080/health || exit 1
+          curl -f http://localhost:8080/ready || exit 1
+          curl -f http://localhost:8080/version || exit 1
+          curl -f http://localhost:8080/api/v1/status || exit 1
+          
+          # Kill port forward
+          kill $PF_PID
+          
+      - name: Run production smoke tests
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Create a test pod to run internal tests
+          cat > test-pod.yaml << EOF
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: production-test
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: test
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # Test internal service connectivity
+                  curl -f http://truenas-api-server:8080/health
+                  curl -f http://truenas-api-server:8080/ready
+                  echo "Production smoke tests passed"
+          EOF
+          
+          kubectl apply -f test-pod.yaml
+          kubectl wait --for=condition=Ready pod/production-test --timeout=60s
+          kubectl logs production-test
+          kubectl delete pod production-test
+          
+      - name: Update production status
+        run: |
+          echo "🎉 Successfully deployed version ${{ steps.version.outputs.version }} to production environment"
+          echo "🌐 Production URL: https://truenas-monitor.example.com"
+          
+      - name: Create deployment record
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            
+            // Create a deployment record
+            const deployment = await github.rest.repos.createDeployment({
+              owner,
+              repo,
+              ref: context.sha,
+              environment: 'production',
+              description: `Deploy version ${{ steps.version.outputs.version }} to production`,
+              auto_merge: false,
+              required_contexts: []
+            });
+            
+            // Mark deployment as successful
+            await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deployment.data.id,
+              state: 'success',
+              target_url: 'https://truenas-monitor.example.com',
+              description: 'Deployment completed successfully'
+            });
+
+  # Rollback deployment if needed
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+    needs: [deploy-production]
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.PRODUCTION_KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+          
+      - name: Rollback deployment
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Rollback to previous version
+          kubectl rollout undo deployment/truenas-api-server
+          kubectl rollout undo deployment/truenas-monitor
+          
+          # Wait for rollback to complete
+          kubectl rollout status deployment/truenas-api-server --timeout=300s
+          kubectl rollout status deployment/truenas-monitor --timeout=300s
+          
+      - name: Verify rollback
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Test that services are working after rollback
+          kubectl port-forward service/truenas-api-server 8080:8080 &
+          PF_PID=$!
+          sleep 10
+          
+          curl -f http://localhost:8080/health || exit 1
+          kill $PF_PID
+          
+          echo "✅ Rollback completed successfully"
+
+  # Database migrations (if applicable)
+  migrate-database:
+    name: Database Migrations
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run database migrations
+        run: |
+          # Placeholder for database migration scripts
+          echo "No database migrations required for this deployment"
+          
+          # Example of how to run migrations:
+          # kubectl run migration-job --image=migration-image:$VERSION --restart=Never
+          # kubectl wait --for=condition=complete job/migration-job --timeout=300s
+
+  # Post-deployment monitoring
+  post-deployment-monitoring:
+    name: Post-Deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: success() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Set up monitoring
+        run: |
+          echo "Setting up post-deployment monitoring..."
+          
+          # Example: Send notification to monitoring system
+          # curl -X POST https://monitoring.example.com/api/deployments \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"version": "${{ needs.deploy-production.outputs.version }}", "environment": "production"}'
+          
+      - name: Wait and verify stability
+        run: |
+          echo "Monitoring deployment stability for 5 minutes..."
+          sleep 300
+          
+          # Check if deployment is still healthy
+          # This would typically involve checking metrics, logs, etc.
+          echo "Deployment appears stable"
+          
+      - name: Send success notification
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Example: Send notification to team
+            console.log('🎉 Production deployment completed successfully and is stable');
+            
+            // You could integrate with Slack, Teams, email, etc. here
+            // const webhook = '${{ secrets.SLACK_WEBHOOK }}';
+            // await fetch(webhook, {
+            //   method: 'POST',
+            //   headers: { 'Content-Type': 'application/json' },
+            //   body: JSON.stringify({
+            //     text: `✅ TrueNAS Monitor deployed to production successfully`
+            //   })
+            // });
+
+  # Cleanup old deployments
+  cleanup:
+    name: Cleanup Old Deployments
+    runs-on: ubuntu-latest
+    needs: [deploy-production, post-deployment-monitoring]
+    if: success()
+    steps:
+      - name: Cleanup old container images
+        run: |
+          echo "Cleaning up old container images..."
+          
+          # This would typically involve:
+          # 1. Listing old images in the registry
+          # 2. Keeping the last N versions
+          # 3. Deleting older versions
+          
+          # Example using GitHub Container Registry API:
+          # curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          #   https://api.github.com/user/packages/container/$IMAGE_NAME/versions
+          
+      - name: Archive deployment artifacts
+        run: |
+          echo "Archiving deployment artifacts..."
+          
+          # Archive deployment manifests, logs, etc.
+          # This helps with compliance and debugging

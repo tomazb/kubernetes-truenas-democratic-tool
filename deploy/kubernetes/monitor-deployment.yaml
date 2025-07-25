@@ -20,7 +20,7 @@ spec:
       serviceAccountName: truenas-monitor
       containers:
       - name: monitor
-        image: truenas-monitor:latest
+        image: ghcr.io/truenas/kubernetes-truenas-democratic-tool:latest
         imagePullPolicy: IfNotPresent
         command: ["/monitor"]
         args:

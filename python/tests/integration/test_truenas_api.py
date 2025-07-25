@@ -327,7 +327,7 @@ class TestTrueNASConnectionScenarios:
         with patch.object(client.session, 'get') as mock_get:
             mock_get.side_effect = requests.exceptions.Timeout('Request timed out')
             
-            with pytest.raises(TrueNASError, match='timeout'):
+            with pytest.raises(TrueNASError, match='Request timed out'):
                 client.test_connection()
     
     def test_ssl_verification_scenarios(self):

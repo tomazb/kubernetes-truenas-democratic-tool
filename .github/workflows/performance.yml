@@ -1,0 +1,494 @@
+name: Performance & Benchmarks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * 1'  # Weekly on Monday at 4 AM UTC
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.21'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Go benchmarks
+  go-benchmarks:
+    name: Go Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go/go.sum
+          
+      - name: Run benchmarks
+        working-directory: ./go
+        run: |
+          # Run benchmarks with memory profiling
+          go test -bench=. -benchmem -benchtime=10s ./... | tee benchmark-results.txt
+          
+          # Run CPU profiling benchmarks
+          go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof -benchtime=5s ./...
+          
+      - name: Analyze benchmark results
+        working-directory: ./go
+        run: |
+          # Install benchstat for statistical analysis
+          go install golang.org/x/perf/cmd/benchstat@latest
+          
+          # Create benchmark comparison if previous results exist
+          if [ -f ../benchmark-baseline.txt ]; then
+            benchstat ../benchmark-baseline.txt benchmark-results.txt > benchmark-comparison.txt
+          else
+            cp benchmark-results.txt ../benchmark-baseline.txt
+          fi
+          
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-benchmark-results
+          path: |
+            go/benchmark-results.txt
+            go/benchmark-comparison.txt
+            go/*.prof
+            
+      - name: Comment benchmark results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const benchmarkResults = fs.readFileSync('go/benchmark-results.txt', 'utf8');
+              const comment = `## 📊 Go Benchmark Results
+              
+              \`\`\`
+              ${benchmarkResults.slice(0, 2000)}${benchmarkResults.length > 2000 ? '...\n[Results truncated - see artifacts for full output]' : ''}
+              \`\`\`
+              
+              Full results available in build artifacts.`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not read benchmark results:', error);
+            }
+
+  # Python performance tests
+  python-performance:
+    name: Python Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Install performance testing tools
+        working-directory: ./python
+        run: |
+          pip install -r requirements-dev.txt
+          pip install pytest-benchmark memory-profiler line-profiler
+          
+      - name: Run performance tests
+        working-directory: ./python
+        run: |
+          # Run pytest with benchmark plugin
+          pytest tests/ --benchmark-only --benchmark-json=benchmark-results.json --benchmark-sort=mean
+          
+          # Run memory profiling on key functions
+          python -m memory_profiler -o memory-profile.log scripts/profile_memory.py || echo "Memory profiling script not found"
+          
+      - name: Generate performance report
+        working-directory: ./python
+        run: |
+          cat > performance-report.md << 'EOF'
+          # Python Performance Report
+          
+          ## Benchmark Results
+          
+          EOF
+          
+          if [ -f benchmark-results.json ]; then
+            python -c "
+          import json
+          with open('benchmark-results.json') as f:
+              data = json.load(f)
+              print('| Test | Mean Time | Std Dev |')
+              print('|------|-----------|---------|')
+              for benchmark in data['benchmarks']:
+                  print(f'| {benchmark[\"name\"]} | {benchmark[\"stats\"][\"mean\"]:.6f}s | {benchmark[\"stats\"][\"stddev\"]:.6f}s |')
+          " >> performance-report.md
+          fi
+          
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-performance-results
+          path: |
+            python/benchmark-results.json
+            python/performance-report.md
+            python/memory-profile.log
+
+  # Load testing with k6
+  load-testing:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+          
+      - name: Build and start services
+        working-directory: ./go
+        run: |
+          # Build services
+          go build -o ../bin/api-server ./cmd/api-server
+          go build -o ../bin/monitor ./cmd/monitor
+          
+          # Start API server in background
+          ../bin/api-server --listen :8080 &
+          API_PID=$!
+          
+          # Wait for server to start
+          sleep 5
+          
+          # Save PID for cleanup
+          echo $API_PID > ../api-server.pid
+          
+      - name: Create k6 test scripts
+        run: |
+          mkdir -p k6-tests
+          
+          # Health check load test
+          cat > k6-tests/health-check.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          
+          export let options = {
+            stages: [
+              { duration: '30s', target: 10 },
+              { duration: '1m', target: 50 },
+              { duration: '30s', target: 100 },
+              { duration: '1m', target: 50 },
+              { duration: '30s', target: 0 },
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<500'],
+              http_req_failed: ['rate<0.1'],
+            },
+          };
+          
+          export default function() {
+            let response = http.get('http://localhost:8080/health');
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+              'response time < 500ms': (r) => r.timings.duration < 500,
+            });
+            sleep(1);
+          }
+          EOF
+          
+          # API endpoint stress test
+          cat > k6-tests/api-stress.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          
+          export let options = {
+            stages: [
+              { duration: '1m', target: 20 },
+              { duration: '2m', target: 20 },
+              { duration: '1m', target: 0 },
+            ],
+          };
+          
+          const endpoints = [
+            '/health',
+            '/ready',
+            '/version',
+            '/api/v1/status'
+          ];
+          
+          export default function() {
+            let endpoint = endpoints[Math.floor(Math.random() * endpoints.length)];
+            let response = http.get(`http://localhost:8080${endpoint}`);
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+            });
+            sleep(Math.random() * 2);
+          }
+          EOF
+          
+      - name: Run load tests
+        run: |
+          # Run health check load test
+          k6 run --out json=health-check-results.json k6-tests/health-check.js
+          
+          # Run API stress test
+          k6 run --out json=api-stress-results.json k6-tests/api-stress.js
+          
+      - name: Cleanup services
+        if: always()
+        run: |
+          if [ -f api-server.pid ]; then
+            kill $(cat api-server.pid) || true
+          fi
+          
+      - name: Generate load test report
+        run: |
+          cat > load-test-report.md << 'EOF'
+          # Load Testing Report
+          
+          ## Test Configuration
+          - Health Check Test: Gradual ramp-up to 100 concurrent users
+          - API Stress Test: Sustained load with 20 concurrent users
+          
+          ## Results Summary
+          
+          EOF
+          
+          # Parse JSON results and add to report
+          if [ -f health-check-results.json ]; then
+            echo "### Health Check Test" >> load-test-report.md
+            echo "\`\`\`json" >> load-test-report.md
+            tail -1 health-check-results.json >> load-test-report.md
+            echo "\`\`\`" >> load-test-report.md
+          fi
+          
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: |
+            *-results.json
+            load-test-report.md
+            k6-tests/
+
+  # Memory and CPU profiling
+  profiling:
+    name: Performance Profiling
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Install profiling tools
+        run: |
+          go install github.com/google/pprof@latest
+          
+      - name: Build services with profiling
+        working-directory: ./go
+        run: |
+          # Build with race detection and profiling enabled
+          go build -race -o ../bin/api-server-profiling ./cmd/api-server
+          
+      - name: Run profiling session
+        run: |
+          # Start service with profiling enabled
+          ./bin/api-server-profiling --listen :8080 --enable-profiling &
+          API_PID=$!
+          
+          # Wait for startup
+          sleep 5
+          
+          # Generate some load while profiling
+          for i in {1..100}; do
+            curl -s http://localhost:8080/health > /dev/null &
+            curl -s http://localhost:8080/api/v1/status > /dev/null &
+          done
+          
+          # Wait for requests to complete
+          wait
+          
+          # Collect CPU profile
+          curl -s http://localhost:8080/debug/pprof/profile?seconds=30 > cpu.prof
+          
+          # Collect memory profile
+          curl -s http://localhost:8080/debug/pprof/heap > heap.prof
+          
+          # Collect goroutine profile
+          curl -s http://localhost:8080/debug/pprof/goroutine > goroutine.prof
+          
+          # Stop service
+          kill $API_PID
+          
+      - name: Generate profiling reports
+        run: |
+          # Generate CPU profile report
+          go tool pprof -text cpu.prof > cpu-profile.txt
+          go tool pprof -svg cpu.prof > cpu-profile.svg
+          
+          # Generate memory profile report
+          go tool pprof -text heap.prof > memory-profile.txt
+          go tool pprof -svg heap.prof > memory-profile.svg
+          
+          # Generate goroutine report
+          go tool pprof -text goroutine.prof > goroutine-profile.txt
+          
+      - name: Upload profiling results
+        uses: actions/upload-artifact@v4
+        with:
+          name: profiling-results
+          path: |
+            *.prof
+            *-profile.txt
+            *-profile.svg
+
+  # Container resource usage analysis
+  container-performance:
+    name: Container Performance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build containers
+        run: |
+          if [ -f deploy/container/Containerfile.api ]; then
+            docker build -f deploy/container/Containerfile.api -t perf-test-api:latest .
+          fi
+          if [ -f deploy/container/Containerfile.monitor ]; then
+            docker build -f deploy/container/Containerfile.monitor -t perf-test-monitor:latest .
+          fi
+          
+      - name: Run container resource analysis
+        run: |
+          # Start containers with resource limits
+          docker run -d --name api-container --memory=512m --cpus=1.0 -p 8080:8080 perf-test-api:latest || echo "API container not available"
+          
+          # Wait for startup
+          sleep 10
+          
+          # Generate load and monitor resources
+          for i in {1..50}; do
+            curl -s http://localhost:8080/health > /dev/null || true &
+          done
+          
+          # Collect container stats
+          docker stats --no-stream api-container > container-stats.txt || echo "No stats available"
+          
+          # Stop container
+          docker stop api-container || true
+          docker rm api-container || true
+          
+      - name: Analyze container size
+        run: |
+          # Analyze image layers and sizes
+          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep perf-test > image-sizes.txt || echo "No images to analyze"
+          
+          # Use dive to analyze image efficiency if available
+          if command -v dive &> /dev/null; then
+            dive perf-test-api:latest --ci > dive-analysis.txt || echo "Dive analysis failed"
+          fi
+          
+      - name: Upload container performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-performance-results
+          path: |
+            container-stats.txt
+            image-sizes.txt
+            dive-analysis.txt
+
+  # Performance regression detection
+  performance-comparison:
+    name: Performance Regression Detection
+    runs-on: ubuntu-latest
+    needs: [go-benchmarks, python-performance, load-testing]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download benchmark results
+        uses: actions/download-artifact@v4
+        
+      - name: Compare performance metrics
+        run: |
+          cat > performance-summary.md << 'EOF'
+          # Performance Comparison Summary
+          
+          ## Go Benchmarks
+          EOF
+          
+          if [ -f go-benchmark-results/benchmark-comparison.txt ]; then
+            echo "### Benchmark Comparison" >> performance-summary.md
+            echo "\`\`\`" >> performance-summary.md
+            cat go-benchmark-results/benchmark-comparison.txt >> performance-summary.md
+            echo "\`\`\`" >> performance-summary.md
+          fi
+          
+          echo "" >> performance-summary.md
+          echo "## Load Testing Results" >> performance-summary.md
+          
+          if [ -f load-test-results/load-test-report.md ]; then
+            cat load-test-results/load-test-report.md >> performance-summary.md
+          fi
+          
+      - name: Comment performance summary on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const summary = fs.readFileSync('performance-summary.md', 'utf8');
+              const comment = `## 🚀 Performance Analysis
+              
+              ${summary}
+              
+              ---
+              *This analysis compares performance metrics between the base branch and this PR.*`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not read performance summary:', error);
+            }
+            
+      - name: Upload performance comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-comparison
+          path: performance-summary.md

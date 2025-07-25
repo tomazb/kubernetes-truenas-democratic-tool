@@ -64,6 +64,26 @@ def mock_monitor():
         "truenas_connectivity": True,
         "errors": []
     }
+    # Mock the TrueNAS client
+    mock_truenas_client = Mock()
+    mock_truenas_client.analyze_snapshot_usage.return_value = {
+        "total_snapshots": 10,
+        "total_snapshot_size": 1073741824,  # 1GB
+        "snapshots_by_volume": {},
+        "oldest_snapshot": None,
+        "newest_snapshot": None,
+        "average_snapshot_age_days": 7,
+        "snapshots_by_age": {
+            "last_24h": 2,
+            "last_week": 5,
+            "last_month": 8,
+            "older": 2
+        },
+        "large_snapshots": [],
+        "recommendations": []
+    }
+    monitor.truenas_client = mock_truenas_client
+    
     return monitor
 
 
@@ -195,7 +215,7 @@ def test_snapshots_command_analysis(mock_monitor_class, mock_load_config, runner
     result = runner.invoke(cli, ['snapshots', '--analysis'])
     
     assert result.exit_code == 0
-    mock_monitor.analyze_trends.assert_called_once()
+    mock_monitor.truenas_client.analyze_snapshot_usage.assert_called_once()
 
 
 @patch('truenas_storage_monitor.cli.load_config')
@@ -205,7 +225,13 @@ def test_snapshots_command_orphaned(mock_monitor_class, mock_load_config, runner
     mock_load_config.return_value = mock_config
     mock_monitor_class.return_value = mock_monitor
     
-    mock_monitor.check_snapshot_health.return_value = {'orphaned_snapshots': []}
+    mock_monitor.check_snapshot_health.return_value = {
+        'orphaned_resources': {'k8s_orphaned': [], 'truenas_orphaned': []},
+        'k8s_snapshots': {'total': 5},
+        'truenas_snapshots': {'total': 8},
+        'alerts': [],
+        'recommendations': []
+    }
     
     result = runner.invoke(cli, ['snapshots', '--orphaned'])
     
@@ -297,16 +323,17 @@ def test_monitor_command(mock_monitor_class, mock_load_config, runner, mock_conf
 
 
 @patch('truenas_storage_monitor.cli.load_config')
-def test_report_command(mock_load_config, runner, mock_config):
+def test_report_command(mock_load_config, runner, mock_config, mock_monitor):
     """Test report command."""
     from truenas_storage_monitor.cli import cli
     mock_load_config.return_value = mock_config
     
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli, ['report', '--output', 'test-report.html'])
-        
-        assert result.exit_code == 0
-        mock_monitor.run_health_check.assert_called_once()
+    with patch('truenas_storage_monitor.monitor.Monitor', return_value=mock_monitor):
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ['report', '--output', 'test-report.html'])
+            
+            assert result.exit_code == 0
+            mock_monitor.run_health_check.assert_called_once()
 
 
 def test_cli_with_custom_config(runner):

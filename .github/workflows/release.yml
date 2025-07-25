@@ -128,48 +128,47 @@ jobs:
       packages: write
     strategy:
       matrix:
-        component: [monitor, api-server, cli]
+        component: [api-server, monitor]
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Podman and buildah
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y podman buildah qemu-user-static
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
         
       - name: Log in to Container Registry
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
           
       - name: Build and push multi-arch image
-        run: |
-          # Skip if container files don't exist yet
-          if [ ! -f ./container/Containerfile.${{ matrix.component }} ]; then
-            echo "Containerfile.${{ matrix.component }} not found, skipping build"
-            exit 0
-          fi
-          
-          # Build for multiple architectures
-          buildah manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest
-          
-          # Build AMD64
-          buildah bud --arch amd64 -f ./container/Containerfile.${{ matrix.component }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64 .
-          buildah push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64
-          buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64
-          
-          # Build ARM64
-          buildah bud --arch arm64 -f ./container/Containerfile.${{ matrix.component }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64 .
-          buildah push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64
-          buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64
-          
-          # Push manifest
-          buildah manifest push --all ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest
-          
-          # Also tag with version
-          buildah manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:${{ needs.release.outputs.version }}
-          buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:${{ needs.release.outputs.version }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-amd64
-          buildah manifest add ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:${{ needs.release.outputs.version }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:latest-arm64
-          buildah manifest push --all ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.component }}:${{ needs.release.outputs.version }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deploy/container/Containerfile.${{ matrix.component }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.release.outputs.version }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
 
   publish-helm:
     name: Publish Helm Chart

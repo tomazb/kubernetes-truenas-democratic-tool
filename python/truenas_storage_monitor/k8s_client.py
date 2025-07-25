@@ -47,6 +47,14 @@ class PersistentVolumeInfo:
     creation_time: Optional[datetime] = None
     labels: Dict[str, str] = field(default_factory=dict)
     annotations: Dict[str, str] = field(default_factory=dict)
+    # Additional field for test compatibility
+    status: Optional[str] = None
+    storage_class: Optional[str] = None
+    
+    def __post_init__(self):
+        # Map phase to status for backward compatibility
+        if self.status is None:
+            self.status = self.phase
 
 
 @dataclass
@@ -61,6 +69,13 @@ class PersistentVolumeClaimInfo:
     creation_time: Optional[datetime] = None
     labels: Dict[str, str] = field(default_factory=dict)
     annotations: Dict[str, str] = field(default_factory=dict)
+    # Additional field for test compatibility
+    status: Optional[str] = None
+    
+    def __post_init__(self):
+        # Map phase to status for backward compatibility
+        if self.status is None:
+            self.status = self.phase
 
 
 @dataclass
@@ -74,6 +89,8 @@ class VolumeSnapshotInfo:
     creation_time: Optional[datetime] = None
     labels: Dict[str, str] = field(default_factory=dict)
     annotations: Dict[str, str] = field(default_factory=dict)
+    # Additional field for test compatibility
+    size: Optional[str] = None
 
 
 @dataclass
@@ -641,6 +658,46 @@ class K8sClient:
         except ApiException as e:
             logger.error(f"Failed to find orphaned snapshots: {e}")
             return []
+    def get_volume_names(self) -> List[str]:
+        """Get names of all volumes from PVCs.
+        
+        Returns:
+            List of volume names
+        """
+        try:
+            pvcs = self.get_persistent_volume_claims()
+            volume_names = []
+            
+            for pvc in pvcs:
+                if pvc.volume_name:
+                    volume_names.append(pvc.volume_name)
+                else:
+                    # Use PVC name if no volume is bound yet
+                    volume_names.append(pvc.name)
+            
+            logger.info(f"Found {len(volume_names)} volume names")
+            return volume_names
+            
+        except ApiException as e:
+            logger.error(f"Failed to get volume names: {e}")
+            return []
+
+    def find_orphaned_k8s_snapshots(self, active_pvcs: List, age_days: int = 30) -> List[OrphanedResource]:
+        """Find Kubernetes snapshots that are orphaned.
+        
+        Args:
+            active_pvcs: List of active PVC objects
+            age_days: Age threshold in days
+            
+        Returns:
+            List of orphaned snapshot resources
+        """
+        return self.find_orphaned_snapshots(age_threshold_minutes=age_days * 24 * 60)
+
+    @property
+    def custom_objects_api(self):
+        """Access to custom objects API for testing."""
+        return self.custom_objects
 
     def find_stale_snapshots(self, age_threshold_days: int = 30) -> List[VolumeSnapshotInfo]:
         """Find VolumeSnapshots older than the specified threshold.

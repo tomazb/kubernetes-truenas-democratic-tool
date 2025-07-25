@@ -1,0 +1,397 @@
+name: CI Pipeline Testing
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/**']
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/**']
+  schedule:
+    - cron: '0 3 * * 0'  # Weekly on Sunday at 3 AM UTC
+  workflow_dispatch:
+
+jobs:
+  # Validate workflow syntax
+  validate-workflows:
+    name: Validate Workflow Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install workflow validation tools
+        run: |
+          npm install -g @actions/workflow-parser
+          
+      - name: Validate workflow files
+        run: |
+          echo "🔍 Validating GitHub Actions workflow files..."
+          
+          # Check each workflow file
+          for workflow in .github/workflows/*.yml; do
+            echo "Validating $workflow..."
+            
+            # Basic YAML syntax check
+            python3 -c "import yaml; yaml.safe_load(open('$workflow'))" || {
+              echo "❌ YAML syntax error in $workflow"
+              exit 1
+            }
+            
+            echo "✅ $workflow is valid"
+          done
+          
+      - name: Check for common issues
+        run: |
+          echo "🔍 Checking for common workflow issues..."
+          
+          # Check for hardcoded versions that should be variables
+          if grep -r "ubuntu-20.04\|ubuntu-18.04" .github/workflows/; then
+            echo "⚠️  Found hardcoded Ubuntu versions - consider using ubuntu-latest"
+          fi
+          
+          # Check for missing permissions
+          if grep -L "permissions:" .github/workflows/*.yml; then
+            echo "⚠️  Some workflows may be missing explicit permissions"
+          fi
+          
+          # Check for secrets usage
+          if grep -r "secrets\." .github/workflows/; then
+            echo "✅ Found secrets usage - ensure all secrets are documented"
+          fi
+
+  # Test workflow components
+  test-workflow-components:
+    name: Test Workflow Components
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Test action versions
+        run: |
+          echo "🔍 Checking action versions..."
+          
+          # Extract all action versions
+          grep -h "uses:" .github/workflows/*.yml | sort | uniq > action-versions.txt
+          
+          # Check for outdated actions
+          while read -r action; do
+            if [[ $action =~ @v[0-9]+ ]]; then
+              echo "📌 Pinned action: $action"
+            elif [[ $action =~ @[a-f0-9]{40} ]]; then
+              echo "🔒 SHA-pinned action: $action"
+            else
+              echo "⚠️  Unpinned action: $action"
+            fi
+          done < action-versions.txt
+          
+      - name: Check for security best practices
+        run: |
+          echo "🔒 Checking security best practices..."
+          
+          # Check for shell injection vulnerabilities
+          if grep -r '\${{ github.event' .github/workflows/ | grep -v 'github.event.inputs'; then
+            echo "⚠️  Potential shell injection vulnerability found"
+          fi
+          
+          # Check for proper secret handling
+          if grep -r '\${{ secrets\.' .github/workflows/ | grep -v 'env:'; then
+            echo "⚠️  Secrets used directly in run commands - consider using env vars"
+          fi
+          
+          # Check for write permissions
+          if grep -A5 -B5 "permissions:" .github/workflows/*.yml | grep "write"; then
+            echo "📝 Found write permissions - ensure they are necessary"
+          fi
+
+  # Simulate workflow execution
+  simulate-ci-execution:
+    name: Simulate CI Execution
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workflow: [ci, security, performance]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup test environment
+        run: |
+          echo "🧪 Setting up test environment for ${{ matrix.workflow }} workflow..."
+          
+          # Create mock files that workflows expect
+          mkdir -p go python deploy/kubernetes deploy/container
+          
+          # Create minimal Go files
+          cat > go/go.mod << EOF
+          module github.com/tomazb/kubernetes-truenas-democratic-tool
+          go 1.21
+          EOF
+          
+          touch go/go.sum
+          
+          # Create minimal Python files
+          cat > python/requirements.txt << EOF
+          requests==2.31.0
+          EOF
+          
+          cat > python/requirements-dev.txt << EOF
+          pytest==7.4.0
+          pytest-cov==4.1.0
+          EOF
+          
+      - name: Test workflow triggers
+        run: |
+          echo "🎯 Testing workflow triggers for ${{ matrix.workflow }}..."
+          
+          # Check if workflow would be triggered by current changes
+          workflow_file=".github/workflows/${{ matrix.workflow }}.yml"
+          
+          if [ -f "$workflow_file" ]; then
+            echo "✅ Workflow file exists: $workflow_file"
+            
+            # Extract trigger conditions
+            grep -A10 "^on:" "$workflow_file" || echo "No triggers found"
+          else
+            echo "❌ Workflow file not found: $workflow_file"
+          fi
+          
+      - name: Validate environment variables
+        run: |
+          echo "🌍 Validating environment variables..."
+          
+          workflow_file=".github/workflows/${{ matrix.workflow }}.yml"
+          
+          if [ -f "$workflow_file" ]; then
+            # Extract environment variables
+            if grep -q "^env:" "$workflow_file"; then
+              echo "✅ Environment variables defined"
+              grep -A20 "^env:" "$workflow_file" | grep -E "^\s+[A-Z_]+:" || true
+            else
+              echo "ℹ️  No environment variables defined"
+            fi
+          fi
+
+  # Test matrix strategies
+  test-matrix-strategies:
+    name: Test Matrix Strategies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Analyze matrix strategies
+        run: |
+          echo "🔍 Analyzing matrix strategies in workflows..."
+          
+          for workflow in .github/workflows/*.yml; do
+            echo "Checking $workflow..."
+            
+            if grep -q "strategy:" "$workflow"; then
+              echo "✅ Matrix strategy found in $(basename $workflow)"
+              
+              # Extract matrix dimensions
+              grep -A10 "matrix:" "$workflow" | grep -E "^\s+[a-z-]+:" || true
+            else
+              echo "ℹ️  No matrix strategy in $(basename $workflow)"
+            fi
+          done
+          
+      - name: Validate matrix combinations
+        run: |
+          echo "🧮 Validating matrix combinations..."
+          
+          # Check for excessive matrix combinations
+          for workflow in .github/workflows/*.yml; do
+            if grep -q "strategy:" "$workflow"; then
+              matrix_size=$(grep -A20 "matrix:" "$workflow" | grep -E "^\s+[a-z-]+:" | wc -l)
+              
+              if [ "$matrix_size" -gt 3 ]; then
+                echo "⚠️  Large matrix detected in $(basename $workflow): $matrix_size dimensions"
+              fi
+            fi
+          done
+
+  # Performance impact analysis
+  analyze-performance-impact:
+    name: Analyze Performance Impact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Estimate workflow costs
+        run: |
+          echo "💰 Estimating workflow execution costs..."
+          
+          for workflow in .github/workflows/*.yml; do
+            echo "Analyzing $(basename $workflow)..."
+            
+            # Count jobs
+            job_count=$(grep -c "^\s\+[a-z-].*:$" "$workflow" | head -1)
+            echo "  Jobs: $job_count"
+            
+            # Check for matrix strategies
+            if grep -q "strategy:" "$workflow"; then
+              echo "  ⚠️  Contains matrix strategy - may multiply execution time"
+            fi
+            
+            # Check for long-running steps
+            if grep -q "timeout" "$workflow"; then
+              echo "  ⏱️  Contains timeout configurations"
+            fi
+            
+            # Check for caching
+            if grep -q "cache:" "$workflow"; then
+              echo "  ✅ Uses caching to improve performance"
+            fi
+          done
+          
+      - name: Check for optimization opportunities
+        run: |
+          echo "🚀 Checking for optimization opportunities..."
+          
+          # Check for missing caching
+          for workflow in .github/workflows/*.yml; do
+            if grep -q "setup-go\|setup-python\|setup-node" "$workflow"; then
+              if ! grep -q "cache:" "$workflow"; then
+                echo "⚠️  $(basename $workflow): Missing cache configuration for language setup"
+              fi
+            fi
+          done
+          
+          # Check for parallel job opportunities
+          echo "📊 Jobs that could potentially run in parallel:"
+          for workflow in .github/workflows/*.yml; do
+            if grep -q "needs:" "$workflow"; then
+              echo "  $(basename $workflow): Has job dependencies"
+            else
+              echo "  $(basename $workflow): Jobs could run in parallel"
+            fi
+          done
+
+  # Documentation check
+  check-workflow-documentation:
+    name: Check Workflow Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check workflow descriptions
+        run: |
+          echo "📚 Checking workflow documentation..."
+          
+          for workflow in .github/workflows/*.yml; do
+            echo "Checking $(basename $workflow)..."
+            
+            # Check for workflow name
+            if grep -q "^name:" "$workflow"; then
+              echo "  ✅ Has name"
+            else
+              echo "  ❌ Missing name"
+            fi
+            
+            # Check for job names
+            if grep -q "name:" "$workflow" | grep -v "^name:"; then
+              echo "  ✅ Jobs have names"
+            else
+              echo "  ⚠️  Some jobs may be missing names"
+            fi
+            
+            # Check for step names
+            step_names=$(grep -c "- name:" "$workflow")
+            total_steps=$(grep -c "- " "$workflow")
+            
+            if [ "$step_names" -gt 0 ]; then
+              echo "  ✅ $step_names/$total_steps steps have names"
+            fi
+          done
+          
+      - name: Generate workflow summary
+        run: |
+          echo "📋 Generating workflow summary..."
+          
+          cat > workflow-summary.md << 'EOF'
+          # GitHub Actions Workflow Summary
+          
+          ## Workflows Overview
+          
+          EOF
+          
+          for workflow in .github/workflows/*.yml; do
+            name=$(grep "^name:" "$workflow" | cut -d: -f2- | xargs)
+            triggers=$(grep -A5 "^on:" "$workflow" | grep -E "^\s+[a-z_]+" | tr -d ' ' | tr '\n' ',' | sed 's/,$//')
+            
+            echo "- **$(basename $workflow)**: $name" >> workflow-summary.md
+            echo "  - Triggers: $triggers" >> workflow-summary.md
+            echo "" >> workflow-summary.md
+          done
+          
+      - name: Upload workflow analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-analysis
+          path: |
+            workflow-summary.md
+            action-versions.txt
+
+  # Final validation report
+  generate-validation-report:
+    name: Generate Validation Report
+    runs-on: ubuntu-latest
+    needs: [validate-workflows, test-workflow-components, simulate-ci-execution, test-matrix-strategies, analyze-performance-impact, check-workflow-documentation]
+    if: always()
+    steps:
+      - name: Generate final report
+        run: |
+          echo "📊 Generating CI pipeline validation report..."
+          
+          cat > ci-validation-report.md << 'EOF'
+          # CI Pipeline Validation Report
+          
+          ## Summary
+          
+          This report summarizes the validation of GitHub Actions workflows.
+          
+          ## Validation Results
+          
+          EOF
+          
+          # Add results based on job outcomes
+          if [[ "${{ needs.validate-workflows.result }}" == "success" ]]; then
+            echo "- ✅ Workflow syntax validation: PASSED" >> ci-validation-report.md
+          else
+            echo "- ❌ Workflow syntax validation: FAILED" >> ci-validation-report.md
+          fi
+          
+          if [[ "${{ needs.test-workflow-components.result }}" == "success" ]]; then
+            echo "- ✅ Workflow components test: PASSED" >> ci-validation-report.md
+          else
+            echo "- ❌ Workflow components test: FAILED" >> ci-validation-report.md
+          fi
+          
+          if [[ "${{ needs.simulate-ci-execution.result }}" == "success" ]]; then
+            echo "- ✅ CI execution simulation: PASSED" >> ci-validation-report.md
+          else
+            echo "- ❌ CI execution simulation: FAILED" >> ci-validation-report.md
+          fi
+          
+          echo "" >> ci-validation-report.md
+          echo "## Recommendations" >> ci-validation-report.md
+          echo "- Keep workflows updated with latest action versions" >> ci-validation-report.md
+          echo "- Monitor workflow execution times and optimize as needed" >> ci-validation-report.md
+          echo "- Ensure proper security practices are followed" >> ci-validation-report.md
+          echo "- Document all workflows and their purposes" >> ci-validation-report.md
+          
+      - name: Upload validation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-validation-report
+          path: ci-validation-report.md
