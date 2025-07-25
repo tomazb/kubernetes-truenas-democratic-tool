@@ -384,8 +384,8 @@ func loggingMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		return ""
 	})
 }
-// r
-equestIDMiddleware adds a unique request ID to each request
+
+// requestIDMiddleware adds a unique request ID to each request
 func requestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")

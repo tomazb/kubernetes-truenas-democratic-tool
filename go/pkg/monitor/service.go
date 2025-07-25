@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
@@ -180,7 +182,6 @@ func (s *Service) monitorLoop(ctx context.Context) {
 
 // performScan executes a complete monitoring scan using the orphan detector
 func (s *Service) performScan(ctx context.Context) {
-	start := time.Now()
 	s.logger.Debug("Starting monitoring scan")
 
 	// Use the comprehensive orphan detector
@@ -211,11 +212,14 @@ func (s *Service) performScan(ctx context.Context) {
 	s.updateMetrics(result)
 
 	// Log scan results using structured logging
-	s.logger.LogScanResult(
-		len(result.OrphanedPVs),
-		len(result.OrphanedPVCs),
-		len(result.OrphanedSnapshots),
-		result.ScanDuration,
+	s.logger.Info("Monitoring scan completed",
+		zap.Int("orphaned_pvs", len(result.OrphanedPVs)),
+		zap.Int("orphaned_pvcs", len(result.OrphanedPVCs)),
+		zap.Int("orphaned_snapshots", len(result.OrphanedSnapshots)),
+		zap.Int("total_pvs", result.TotalPVs),
+		zap.Int("total_pvcs", result.TotalPVCs),
+		zap.Int("total_snapshots", result.TotalSnapshots),
+		zap.Duration("scan_duration", result.ScanDuration),
 	)
 }
 
