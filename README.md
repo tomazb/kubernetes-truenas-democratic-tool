@@ -52,12 +52,20 @@ The tool uses a hybrid Go/Python architecture:
 
 ### Installation
 
-#### Quick Start (Recommended)
+#### Go Components (API Server & Monitor)
 
 ```bash
-git clone https://github.com/tomazb/kubernetes-truenas-democratic-tool.git
-cd kubernetes-truenas-democratic-tool
-./quick-start.sh
+# Prerequisites: Go 1.21+
+cd go/
+
+# Install dependencies and build
+go mod download
+go build -o bin/api-server ./cmd/api-server
+go build -o bin/monitor ./cmd/monitor
+
+# Verify builds
+./bin/api-server --help
+./bin/monitor --help
 ```
 
 #### CLI Tool (Python)
@@ -84,6 +92,26 @@ podman run -it --rm \
 ```
 
 ### Basic Usage
+
+#### Go Services
+
+```bash
+# Start API server
+cd go/
+./bin/api-server --config ../config.yaml --listen :8080
+
+# Start monitor service (in another terminal)
+./bin/monitor --config ../config.yaml --log-level info
+
+# Test API endpoints
+curl http://localhost:8080/health
+curl http://localhost:8080/ready  # Enhanced connectivity validation
+curl http://localhost:8080/api/v1/validate  # Configuration validation with tests
+curl http://localhost:8080/api/v1/status
+curl http://localhost:8080/api/v1/orphans
+```
+
+#### Python CLI
 
 ```bash
 # Check for orphaned resources
@@ -198,6 +226,7 @@ make container-build-all
 
 ## Documentation
 
+- [**Go Components Guide**](docs/GO_COMPONENTS.md) - Complete Go services documentation
 - [Architecture](docs/ARCHITECTURE.md) - System design and components
 - [PRD](docs/PRD.md) - Product requirements and roadmap
 - [CLAUDE.md](CLAUDE.md) - Development guidelines

@@ -15,9 +15,8 @@ go-deps: ## Install Go dependencies
 
 .PHONY: go-build
 go-build: go-deps ## Build all Go binaries
-	cd go && go build -o ../bin/monitor ./cmd/monitor
-	cd go && go build -o ../bin/api-server ./cmd/api-server
-	cd go && go build -o ../bin/controller ./cmd/controller
+	cd go && go build -ldflags "-X main.version=$(shell cat VERSION) -X main.gitCommit=$(shell git rev-parse --short HEAD) -X main.buildDate=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)" -o ../bin/monitor ./cmd/monitor
+	cd go && go build -ldflags "-X main.version=$(shell cat VERSION) -X main.gitCommit=$(shell git rev-parse --short HEAD) -X main.buildDate=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)" -o ../bin/api-server ./cmd/api-server
 
 .PHONY: go-test
 go-test: ## Run Go tests

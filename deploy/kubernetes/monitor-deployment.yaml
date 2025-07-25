@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: truenas-monitor
+  namespace: truenas-monitor
+  labels:
+    app: truenas-monitor
+    component: monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: truenas-monitor
+  template:
+    metadata:
+      labels:
+        app: truenas-monitor
+        component: monitor
+    spec:
+      serviceAccountName: truenas-monitor
+      containers:
+      - name: monitor
+        image: truenas-monitor:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/monitor"]
+        args:
+        - --config=/etc/config/config.yaml
+        - --log-level=info
+        ports:
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        - name: TRUENAS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: truenas-credentials
+              key: password
+        - name: TRUENAS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: truenas-credentials
+              key: api_key
+              optional: true
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: truenas-monitor-config
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      restartPolicy: Always

@@ -1,0 +1,53 @@
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+CHANGELOG.md
+CONTRIBUTING.md
+RELEASE_CHECKLIST.md
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+*_test.go
+testdata/
+coverage.out
+coverage.html
+
+# Python environment (not needed for Go containers)
+python/
+*.py
+*.pyc
+__pycache__/
+.pytest_cache/
+venv/
+.venv/
+
+# Build artifacts
+bin/
+*.log
+security-report.json
+
+# Configuration examples (use ConfigMaps instead)
+config.yaml.example
+*.example
+
+# Scripts (use container entrypoints instead)
+scripts/
+
+# Shared resources (include only what's needed)
+shared/.env*
+shared/test-*
+
+# Temporary files
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: truenas-monitor-config
+  namespace: truenas-monitor
+data:
+  config.yaml: |
+    openshift:
+      namespace: democratic-csi
+      storage_class: democratic-csi-nfs
+      csi_driver: org.democratic-csi.nfs
+    
+    truenas:
+      url: https://truenas.example.com
+      username: admin
+      password: ${TRUENAS_PASSWORD}
+      verify_ssl: true
+      timeout: 30
+    
+    monitoring:
+      orphan_check_interval: 1h
+      orphan_threshold: 24h
+      workers: 10
+      batch_size: 100
+    
+    api:
+      listen: ":8080"
+      tls:
+        enabled: false
+    
+    metrics:
+      enabled: true
+      port: 9090
+      path: /metrics
+    
+    logging:
+      level: info
+      format: json
+      output: stdout

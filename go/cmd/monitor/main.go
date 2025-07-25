@@ -1,17 +1,22 @@
 package main
 
 import (
-	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/internal/config"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/internal/monitor"
 )
 
+// Build-time variables (set by go build -ldflags)
 var (
 	version   = "dev"
 	gitCommit = "unknown"
@@ -74,24 +79,48 @@ func run(cmd *cobra.Command, args []string) {
 		zap.String("buildDate", buildDate),
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Load configuration
+	config, err := loadConfig()
+	if err != nil {
+		logger.Fatal("Failed to load configuration", zap.Error(err))
+	}
+
+	// Initialize and start monitor service
+	monitorService, err := monitor.NewService(config, logger)
+	if err != nil {
+		logger.Fatal("Failed to create monitor service", zap.Error(err))
+	}
+
+	// Start Prometheus metrics server if enabled
+	if config.Metrics.Enabled {
+		go func() {
+			addr := fmt.Sprintf(":%d", config.Metrics.Port)
+			logger.Info("Starting metrics server", zap.String("address", addr))
+			http.Handle(config.Metrics.Path, promhttp.Handler())
+			if err := http.ListenAndServe(addr, nil); err != nil {
+				logger.Error("Metrics server failed", zap.Error(err))
+			}
+		}()
+	}
+
+	// Start monitoring service
+	if err := monitorService.Start(); err != nil {
+		logger.Fatal("Failed to start monitor service", zap.Error(err))
+	}
 
 	// Handle shutdown gracefully
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	go func() {
-		<-sigChan
-		logger.Info("Received shutdown signal")
-		cancel()
-	}()
+	<-sigChan
+	logger.Info("Received shutdown signal")
 
-	// TODO: Initialize and start monitor service
-	logger.Info("Monitor service would start here")
+	// Stop monitoring service
+	if err := monitorService.Stop(); err != nil {
+		logger.Error("Failed to stop monitor service", zap.Error(err))
+	}
 
-	<-ctx.Done()
-	logger.Info("Shutting down monitor service")
+	logger.Info("Monitor service shut down successfully")
 }
 
 func setupLogger() (*zap.Logger, error) {
@@ -109,6 +138,11 @@ func setupLogger() (*zap.Logger, error) {
 	}
 
 	return config.Build()
+}
+
+// loadConfig loads the configuration
+func loadConfig() (*config.Config, error) {
+	return config.LoadConfig()
 }
 
 func main() {
