@@ -7,7 +7,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"go.uber.org/zap"
 
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
@@ -59,9 +59,8 @@ type DetectionResult struct {
 // NewDetector creates a new orphan detector
 func NewDetector(k8sClient k8s.Client, truenasClient truenas.Client, config Config) (*Detector, error) {
 	logger, err := logging.NewLogger(logging.Config{
-		Level:     "info",
-		Format:    "json",
-		Component: "orphan-detector",
+		Level:    "info",
+		Encoding: "json",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
@@ -86,11 +85,11 @@ func NewDetector(k8sClient k8s.Client, truenasClient truenas.Client, config Conf
 // DetectOrphanedResources performs comprehensive orphan detection
 func (d *Detector) DetectOrphanedResources(ctx context.Context, namespace string) (*DetectionResult, error) {
 	start := time.Now()
-	d.logger.WithFields(map[string]interface{}{
-		"namespace":      namespace,
-		"age_threshold":  d.config.AgeThreshold.String(),
-		"dry_run":        d.config.DryRun,
-	}).Info("Starting orphaned resource detection")
+	d.logger.Info("Starting orphaned resource detection",
+		zap.String("namespace", namespace),
+		zap.String("age_threshold", d.config.AgeThreshold.String()),
+		zap.Bool("dry_run", d.config.DryRun),
+	)
 
 	result := &DetectionResult{
 		Timestamp: start,
@@ -125,15 +124,15 @@ func (d *Detector) DetectOrphanedResources(ctx context.Context, namespace string
 
 	result.ScanDuration = time.Since(start)
 
-	d.logger.WithFields(map[string]interface{}{
-		"orphaned_pvs":       len(result.OrphanedPVs),
-		"orphaned_pvcs":      len(result.OrphanedPVCs),
-		"orphaned_snapshots": len(result.OrphanedSnapshots),
-		"total_pvs":          result.TotalPVs,
-		"total_pvcs":         result.TotalPVCs,
-		"total_snapshots":    result.TotalSnapshots,
-		"scan_duration_ms":   result.ScanDuration.Milliseconds(),
-	}).Info("Orphaned resource detection completed")
+	d.logger.Info("Orphaned resource detection completed",
+		zap.Int("orphaned_pvs", len(result.OrphanedPVs)),
+		zap.Int("orphaned_pvcs", len(result.OrphanedPVCs)),
+		zap.Int("orphaned_snapshots", len(result.OrphanedSnapshots)),
+		zap.Int("total_pvs", result.TotalPVs),
+		zap.Int("total_pvcs", result.TotalPVCs),
+		zap.Int("total_snapshots", result.TotalSnapshots),
+		zap.Int64("scan_duration_ms", result.ScanDuration.Milliseconds()),
+	)
 
 	return result, nil
 }
@@ -180,8 +179,8 @@ func (d *Detector) detectOrphanedPVs(ctx context.Context) ([]OrphanedResource, i
 				}
 			}
 
-			if pv.Spec.StorageClassName != nil {
-				orphan.StorageClass = *pv.Spec.StorageClassName
+			if pv.Spec.StorageClassName != "" {
+				orphan.StorageClass = pv.Spec.StorageClassName
 			}
 
 			if pv.Spec.CSI != nil {
@@ -192,11 +191,11 @@ func (d *Detector) detectOrphanedPVs(ctx context.Context) ([]OrphanedResource, i
 		}
 	}
 
-	d.logger.WithFields(map[string]interface{}{
-		"total_democratic_csi_pvs": len(pvs),
-		"orphaned_pvs":             len(orphaned),
-		"age_threshold":            d.config.AgeThreshold.String(),
-	}).Info("PV orphan detection completed")
+	d.logger.Info("PV orphan detection completed",
+		zap.Int("total_democratic_csi_pvs", len(pvs)),
+		zap.Int("orphaned_pvs", len(orphaned)),
+		zap.String("age_threshold", d.config.AgeThreshold.String()),
+	)
 
 	return orphaned, len(pvs), nil
 }
@@ -239,7 +238,7 @@ func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string) ([]
 				}
 			}
 
-			if pvc.Spec.StorageClassName != nil {
+			if pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName != "" {
 				orphan.StorageClass = *pvc.Spec.StorageClassName
 			}
 
@@ -247,13 +246,13 @@ func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string) ([]
 		}
 	}
 
-	d.logger.WithFields(map[string]interface{}{
-		"namespace":        namespace,
-		"total_pvcs":       len(allPVCs),
-		"unbound_pvcs":     len(unboundPVCs),
-		"orphaned_pvcs":    len(orphaned),
-		"age_threshold":    d.config.AgeThreshold.String(),
-	}).Info("PVC orphan detection completed")
+	d.logger.Info("PVC orphan detection completed",
+		zap.String("namespace", namespace),
+		zap.Int("total_pvcs", len(allPVCs)),
+		zap.Int("unbound_pvcs", len(unboundPVCs)),
+		zap.Int("orphaned_pvcs", len(orphaned)),
+		zap.String("age_threshold", d.config.AgeThreshold.String()),
+	)
 
 	return orphaned, len(allPVCs), nil
 }
@@ -314,14 +313,14 @@ func (d *Detector) detectOrphanedSnapshots(ctx context.Context, namespace string
 		}
 	}
 
-	d.logger.WithFields(map[string]interface{}{
-		"namespace":           namespace,
-		"k8s_snapshots":       len(k8sSnapshots),
-		"truenas_snapshots":   len(truenasSnapshots),
-		"orphaned_snapshots":  len(orphaned),
-		"age_threshold":       d.config.AgeThreshold.String(),
-		"retention_threshold": d.config.SnapshotRetention.String(),
-	}).Info("Snapshot orphan detection completed")
+	d.logger.Info("Snapshot orphan detection completed",
+		zap.String("namespace", namespace),
+		zap.Int("k8s_snapshots", len(k8sSnapshots)),
+		zap.Int("truenas_snapshots", len(truenasSnapshots)),
+		zap.Int("orphaned_snapshots", len(orphaned)),
+		zap.String("age_threshold", d.config.AgeThreshold.String()),
+		zap.String("retention_threshold", d.config.SnapshotRetention.String()),
+	)
 
 	return orphaned, len(k8sSnapshots), nil
 }
@@ -347,12 +346,12 @@ func (d *Detector) hasCorrespondingTrueNASVolume(pv corev1.PersistentVolume, tru
 	for _, volume := range truenasVolumes {
 		// Check various matching strategies
 		if d.volumeMatches(volume, volumeHandle, datasetName) {
-			d.logger.WithFields(map[string]interface{}{
-				"pv_name":       pv.Name,
-				"volume_handle": volumeHandle,
-				"dataset_name":  datasetName,
-				"truenas_volume": volume.Name,
-			}).Debug("Found matching TrueNAS volume for PV")
+			d.logger.Debug("Found matching TrueNAS volume for PV",
+				zap.String("pv_name", pv.Name),
+				zap.String("volume_handle", volumeHandle),
+				zap.String("dataset_name", datasetName),
+				zap.String("truenas_volume", volume.Name),
+			)
 			return true
 		}
 	}
