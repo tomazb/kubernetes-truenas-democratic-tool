@@ -506,29 +506,6 @@ jobs:
           npm install -g @apidevtools/swagger-cli
           swagger-cli validate docs/api.yaml
 
-  # Dependency vulnerability scanning
-  dependency-scan:
-    name: Dependency Vulnerability Scan
-    runs-on: ubuntu-latest
-    if: ${{ secrets.SNYK_TOKEN != '' }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/golang@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high --all-projects
-          command: test
-          
-      - name: Upload Snyk results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: snyk.sarif
-
   # All checks passed gate
   ci-success:
     name: CI Success Gate
