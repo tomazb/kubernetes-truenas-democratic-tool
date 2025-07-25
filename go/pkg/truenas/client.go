@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/logging"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 )
 
 // Client represents a TrueNAS client

@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/k8s"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/logging"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/metrics"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/orphan"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/truenas"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/orphan"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 )
 
 // Service represents the monitoring service

@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/api"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/config"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/k8s"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/truenas"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/api"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/config"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
 )
 

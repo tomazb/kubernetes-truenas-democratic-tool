@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/k8s"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/monitor"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/truenas"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/monitor"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )

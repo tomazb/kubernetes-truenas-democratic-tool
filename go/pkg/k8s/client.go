@@ -51,10 +51,13 @@ type Client interface {
 	ListStorageClasses(ctx context.Context) ([]storagev1.StorageClass, error)
 	ListPods(ctx context.Context, namespace string) ([]corev1.Pod, error)
 	ListNamespaces(ctx context.Context) ([]corev1.Namespace, error)
+	GetNamespace(ctx context.Context, name string) (*corev1.Namespace, error)
 	
 	// Resource filtering
 	ListPersistentVolumesByStorageClass(ctx context.Context, storageClass string) ([]corev1.PersistentVolume, error)
 	ListPersistentVolumeClaimsByStorageClass(ctx context.Context, namespace, storageClass string) ([]corev1.PersistentVolumeClaim, error)
+	ListDemocraticCSIPersistentVolumes(ctx context.Context) ([]corev1.PersistentVolume, error)
+	ListUnboundPersistentVolumeClaims(ctx context.Context, namespace string) ([]corev1.PersistentVolumeClaim, error)
 	
 	// Health and validation
 	TestConnection(ctx context.Context) error
@@ -65,18 +68,7 @@ type Client interface {
 	ListCSINodes(ctx context.Context) ([]storagev1.CSINode, error)
 	ListCSIDrivers(ctx context.Context) ([]storagev1.CSIDriver, error)
 	ListVolumeAttachments(ctx context.Context) ([]storagev1.VolumeAttachment, error)
-	ListPods(ctx context.Context, namespace string) ([]corev1.Pod, error)
-	ListNamespaces(ctx context.Context) ([]corev1.Namespace, error)
-	GetNamespace(ctx context.Context, name string) (*corev1.Namespace, error)
-	
-	// Filtered resource listing
-	ListDemocraticCSIPersistentVolumes(ctx context.Context) ([]corev1.PersistentVolume, error)
-	ListPersistentVolumesByStorageClass(ctx context.Context, storageClass string) ([]corev1.PersistentVolume, error)
-	ListUnboundPersistentVolumeClaims(ctx context.Context, namespace string) ([]corev1.PersistentVolumeClaim, error)
 	GetCSIDriverPods(ctx context.Context, namespace string) ([]corev1.Pod, error)
-	
-	// Connection testing
-	TestConnection(ctx context.Context) error
 }
 
 // client implements the Client interface
@@ -386,8 +378,8 @@ func (c *client) TestConnection(ctx context.Context) error {
 	
 	return nil
 }
-/
-/ ListDemocraticCSIPersistentVolumes lists PVs managed by democratic-csi
+
+// ListDemocraticCSIPersistentVolumes lists PVs managed by democratic-csi
 func (c *client) ListDemocraticCSIPersistentVolumes(ctx context.Context) ([]corev1.PersistentVolume, error) {
 	pvs, err := c.ListPersistentVolumes(ctx)
 	if err != nil {
@@ -577,8 +569,8 @@ func containsSubstring(s, substr string) bool {
 	}
 	return false
 }
-/
-/ ValidateRBACPermissions validates that the client has required RBAC permissions
+
+// ValidateRBACPermissions validates that the client has required RBAC permissions
 func (c *client) ValidateRBACPermissions(ctx context.Context) (*RBACValidationResult, error) {
 	result := &RBACValidationResult{
 		PermissionChecks: make(map[string]bool),

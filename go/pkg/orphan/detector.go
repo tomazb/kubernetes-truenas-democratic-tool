@@ -9,9 +9,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/k8s"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/logging"
-	"github.com/yourusername/kubernetes-truenas-democratic-tool/pkg/truenas"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 )
 
 // Detector handles orphaned resource detection
