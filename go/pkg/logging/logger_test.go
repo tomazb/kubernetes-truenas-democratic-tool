@@ -1,13 +1,11 @@
 package logging
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -22,18 +20,18 @@ func TestNewLogger(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "json format",
+			name: "json encoding",
 			config: Config{
-				Level:  "info",
-				Format: "json",
+				Level:    "info",
+				Encoding: "json",
 			},
 			wantErr: false,
 		},
 		{
-			name: "console format",
+			name: "console encoding",
 			config: Config{
-				Level:  "debug",
-				Format: "console",
+				Level:    "debug",
+				Encoding: "console",
 			},
 			wantErr: false,
 		},
@@ -50,7 +48,7 @@ func TestNewLogger(t *testing.T) {
 			config: Config{
 				Level: "invalid",
 			},
-			wantErr: true,
+			wantErr: false, // Invalid level defaults to info
 		},
 	}
 
@@ -70,30 +68,6 @@ func TestNewLogger(t *testing.T) {
 	}
 }
 
-func TestLoggerWithContext(t *testing.T) {
-	logger, err := NewLogger(Config{Level: "info"})
-	require.NoError(t, err)
-
-	// Test with correlation ID
-	ctx := NewContextWithCorrelationID(context.Background(), "test-correlation-id")
-	contextLogger := logger.WithContext(ctx)
-	assert.NotNil(t, contextLogger)
-
-	// Test with component
-	ctx = NewContextWithComponent(ctx, "test-component")
-	contextLogger = logger.WithContext(ctx)
-	assert.NotNil(t, contextLogger)
-
-	// Test with operation
-	ctx = NewContextWithOperation(ctx, "test-operation")
-	contextLogger = logger.WithContext(ctx)
-	assert.NotNil(t, contextLogger)
-
-	// Test with empty context
-	emptyContextLogger := logger.WithContext(context.Background())
-	assert.NotNil(t, emptyContextLogger)
-}
-
 func TestLoggerWithMethods(t *testing.T) {
 	logger, err := NewLogger(Config{Level: "info"})
 	require.NoError(t, err)
@@ -102,68 +76,39 @@ func TestLoggerWithMethods(t *testing.T) {
 	componentLogger := logger.WithComponent("test-component")
 	assert.NotNil(t, componentLogger)
 
-	// Test WithOperation
-	operationLogger := logger.WithOperation("test-operation")
-	assert.NotNil(t, operationLogger)
+	// Test WithRequestID
+	requestLogger := logger.WithRequestID("test-request-id")
+	assert.NotNil(t, requestLogger)
 
-	// Test WithCorrelationID
-	correlationLogger := logger.WithCorrelationID("test-correlation-id")
-	assert.NotNil(t, correlationLogger)
+	// Test WithNamespace
+	namespaceLogger := logger.WithNamespace("test-namespace")
+	assert.NotNil(t, namespaceLogger)
 
 	// Test WithError
 	testErr := assert.AnError
 	errorLogger := logger.WithError(testErr)
 	assert.NotNil(t, errorLogger)
-
-	// Test WithFields
-	fields := map[string]interface{}{
-		"key1": "value1",
-		"key2": 42,
-		"key3": true,
-	}
-	fieldsLogger := logger.WithFields(fields)
-	assert.NotNil(t, fieldsLogger)
-}
-
-func TestContextHelpers(t *testing.T) {
-	ctx := context.Background()
-
-	// Test correlation ID
-	correlationID := "test-correlation-id"
-	ctx = NewContextWithCorrelationID(ctx, correlationID)
-	assert.Equal(t, correlationID, GetCorrelationID(ctx))
-
-	// Test component
-	component := "test-component"
-	ctx = NewContextWithComponent(ctx, component)
-	assert.Equal(t, component, ctx.Value(ComponentKey))
-
-	// Test operation
-	operation := "test-operation"
-	ctx = NewContextWithOperation(ctx, operation)
-	assert.Equal(t, operation, ctx.Value(OperationKey))
-
-	// Test empty context
-	emptyCtx := context.Background()
-	assert.Empty(t, GetCorrelationID(emptyCtx))
 }
 
 func TestLogOperations(t *testing.T) {
 	logger, err := NewLogger(Config{Level: "info"})
 	require.NoError(t, err)
 
-	// Test LogHTTPRequest
-	logger.LogHTTPRequest("GET", "/api/v1/orphans", "test-agent", "127.0.0.1", 200, 150)
+	// Test LogAPIRequest
+	logger.LogAPIRequest("GET", "/api/v1/orphans", "127.0.0.1", 200, 150)
 
 	// Test LogK8sOperation
-	logger.LogK8sOperation("list", "persistentvolumes", "", 10, 250)
-	logger.LogK8sOperation("list", "persistentvolumeclaims", "default", 5, 100)
+	logger.LogK8sOperation("list", "persistentvolumes", "", "", nil)
+	logger.LogK8sOperation("list", "persistentvolumeclaims", "default", "", nil)
 
 	// Test LogTrueNASOperation
-	logger.LogTrueNASOperation("list_volumes", "/api/v2.0/pool/dataset", 200, 300)
+	logger.LogTrueNASOperation("list", "datasets", 200, nil)
 
-	// Test LogScanResult
-	logger.LogScanResult(2, 1, 0, 5000)
+	// Test LogOrphanDetection
+	logger.LogOrphanDetection("volumes", 10, 2, 5000)
+
+	// Test LogSecurityEvent
+	logger.LogSecurityEvent("access", "test-user", "volumes", true)
 }
 
 func TestLogLevels(t *testing.T) {
@@ -181,6 +126,23 @@ func TestLogLevels(t *testing.T) {
 		zap.String("key1", "value1"),
 		zap.Int("key2", 42),
 	)
+}
+
+func TestLoggerLevelControl(t *testing.T) {
+	logger, err := NewLogger(Config{Level: "warn"})
+	require.NoError(t, err)
+
+	// Test getting current level
+	assert.Equal(t, "warn", logger.GetLevel())
+
+	// Test setting level
+	err = logger.SetLevel("debug")
+	assert.NoError(t, err)
+	assert.Equal(t, "debug", logger.GetLevel())
+
+	// Test invalid level
+	err = logger.SetLevel("invalid")
+	assert.Error(t, err)
 }
 
 func TestConfigValidation(t *testing.T) {
@@ -210,9 +172,9 @@ func TestConfigValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "invalid level",
+			name: "invalid level defaults to info",
 			config: Config{Level: "invalid"},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "empty level defaults to info",
@@ -231,20 +193,4 @@ func TestConfigValidation(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestLoggerChaining(t *testing.T) {
-	logger, err := NewLogger(Config{Level: "info"})
-	require.NoError(t, err)
-
-	// Test method chaining
-	chainedLogger := logger.
-		WithComponent("test-component").
-		WithOperation("test-operation").
-		WithCorrelationID("test-correlation-id")
-
-	assert.NotNil(t, chainedLogger)
-
-	// Test logging with chained logger
-	chainedLogger.Info("Test message with chained context")
 }
