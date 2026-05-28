@@ -273,16 +273,14 @@ Copy this checklist into every PR description:
 
 Minimum verification for touched stack:
 
-- Go changes:
-  - `go test ./... -v -cover`
-  - `golangci-lint run`
-  - `go vet ./...`
-- Python changes:
-  - `pytest tests/python/ --cov=python --cov-report=html`
-  - `black python/ --check`
-  - `flake8 python/`
-  - `mypy python/`
-  - `bandit -r python/`
+- Go changes (module root is `go/`):
+  - `make go-test` (or `cd go && go test ./... -v -cover`)
+  - `make go-lint` (or `cd go && golangci-lint run ./...`)
+  - `cd go && go vet ./...`
+- Python changes (package root is `python/`):
+  - `make python-test` (or `cd python && pytest tests/ -v --cov=. --cov-report=html`)
+  - `make python-lint` (or `cd python && black . --check && flake8 . && mypy .`)
+  - `cd python && bandit -r .`
 - Cross-cutting/integration changes:
   - `make test-all`
   - `make security-scan`
@@ -293,20 +291,18 @@ If a command is not applicable or temporarily skipped, document the reason in th
 
 ### Go
 
-- `go test ./... -v -cover`
-- `go build -o bin/monitor ./cmd/monitor`
-- `go build -o bin/api-server ./cmd/api-server`
-- `golangci-lint run`
-- `go vet ./...`
+- `make go-test`
+- `make go-lint`
+- `cd go && go build -o ../bin/monitor ./cmd/monitor`
+- `cd go && go build -o ../bin/api-server ./cmd/api-server`
+- `cd go && go vet ./...`
 
 ### Python
 
 - `python -m venv venv && source venv/bin/activate`
-- `pytest tests/python/ --cov=python --cov-report=html`
-- `black python/ --check`
-- `flake8 python/`
-- `mypy python/`
-- `bandit -r python/`
+- `make python-test`
+- `make python-lint`
+- `cd python && bandit -r .`
 
 ### Combined
 
