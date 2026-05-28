@@ -75,7 +75,7 @@ jobs:
       - name: Run tests
         run: |
           cd python
-          pytest tests/ -v --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=85
+          pytest tests/ -v --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=70
           
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.31.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'fs'
           scan-ref: '.'

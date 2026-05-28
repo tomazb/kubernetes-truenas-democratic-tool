@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from truenas_storage_monitor.monitor import Monitor
 from truenas_storage_monitor.config import Config
@@ -45,7 +45,7 @@ class TestMonitor:
             {
                 'metadata': {
                     'name': 'pv-test',
-                    'creationTimestamp': (datetime.now() - timedelta(hours=25)).isoformat() + 'Z'
+                    'creationTimestamp': (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat().replace('+00:00', 'Z')
                 },
                 'spec': {
                     'csi': {'driver': 'democratic-csi'},
@@ -60,7 +60,7 @@ class TestMonitor:
                 'metadata': {
                     'name': 'pvc-test',
                     'namespace': 'default',
-                    'creationTimestamp': (datetime.now() - timedelta(hours=25)).isoformat() + 'Z'
+                    'creationTimestamp': (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat().replace('+00:00', 'Z')
                 },
                 'status': {'phase': 'Pending'},
                 'spec': {

@@ -135,8 +135,9 @@ class TestConfigModule:
             }
         }
     
-    @patch("builtins.open", new_callable=mock_open, read_data="openshift:\\n  namespace: test\\nmonitoring: {}")
-    def test_load_config_from_file(self, mock_file):
+    @patch("truenas_storage_monitor.config.Path.exists", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data="openshift:\n  namespace: test\nmonitoring: {}\ntruenas:\n  url: https://truenas.example.com\n  api_key: test-key\n")
+    def test_load_config_from_file(self, mock_file, _mock_exists):
         """Test loading config from file."""
         config = load_config("test.yaml")
         

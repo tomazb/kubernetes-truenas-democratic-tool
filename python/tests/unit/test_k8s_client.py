@@ -178,8 +178,8 @@ class TestK8sClient:
         scs = mock_client.get_storage_classes()
         
         assert len(scs) == 1
-        assert scs[0].name == "democratic-csi-nfs"
-        assert scs[0].provisioner == "org.democratic-csi.nfs"
+        assert scs[0]["name"] == "democratic-csi-nfs"
+        assert scs[0]["provisioner"] == "org.democratic-csi.nfs"
 
     def test_get_csi_nodes(self, mock_client):
         """Test getting CSI nodes."""
@@ -189,6 +189,7 @@ class TestK8sClient:
         driver1 = Mock()
         driver1.name = "org.democratic-csi.nfs"
         driver1.node_id = "node-1"
+        driver1.allocatable = None
         node1.spec.drivers = [driver1]
         
         mock_client.storage_v1.list_csi_node.return_value = Mock(items=[node1])
@@ -196,8 +197,8 @@ class TestK8sClient:
         nodes = mock_client.get_csi_nodes()
         
         assert len(nodes) == 1
-        assert nodes[0].name == "node-1"
-        assert any(d.name == "org.democratic-csi.nfs" for d in nodes[0].drivers)
+        assert nodes[0]["name"] == "node-1"
+        assert any(d["name"] == "org.democratic-csi.nfs" for d in nodes[0]["drivers"])
 
     def test_get_csi_driver_pods(self, mock_client):
         """Test getting CSI driver pods."""
@@ -218,8 +219,8 @@ class TestK8sClient:
         pods = mock_client.get_csi_driver_pods()
         
         assert len(pods) == 1
-        assert pods[0].name == "democratic-csi-controller-0"
-        assert pods[0].status == "Running"
+        assert pods[0]["name"] == "democratic-csi-controller-0"
+        assert pods[0]["status"] == "Running"
 
     def test_check_csi_driver_health(self, mock_client):
         """Test checking CSI driver health."""
@@ -245,6 +246,7 @@ class TestK8sClient:
         pod1 = Mock()
         pod1.metadata.name = "democratic-csi-controller-0"
         pod1.status.phase = "CrashLoopBackOff"
+        pod1.status.container_statuses = []
         
         mock_client.core_v1.list_pod_for_all_namespaces.return_value = Mock(items=[pod1])
         
@@ -302,15 +304,15 @@ class TestK8sClient:
 
     def test_watch_persistent_volumes(self, mock_client):
         """Test watching PV events."""
-        # Mock watch stream
-        mock_event = Mock()
-        mock_event.type = "ADDED"
-        mock_event.object = Mock()
-        mock_event.object.metadata.name = "pv-new"
-        mock_event.object.spec.csi = Mock(driver="org.democratic-csi.nfs")
-        
+        mock_pv = Mock()
+        mock_pv.metadata.name = "pv-new"
+        mock_pv.spec.csi = Mock(driver="org.democratic-csi.nfs")
+        mock_pv.status.phase = "Pending"
+
         with patch('truenas_storage_monitor.k8s_client.watch.Watch') as mock_watch:
-            mock_watch.return_value.stream.return_value = [mock_event]
+            mock_watch.return_value.stream.return_value = [
+                {"type": "ADDED", "object": mock_pv},
+            ]
             
             events = []
             for event in mock_client.watch_persistent_volumes(timeout_seconds=1):

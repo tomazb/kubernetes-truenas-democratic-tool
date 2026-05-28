@@ -256,11 +256,16 @@ class TestTrueNASClient:
             }
         ]
         
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_snapshots
-        mock_client.session.get.return_value = mock_response
-        
+        def get_side_effect(*_args, **_kwargs):
+            response = Mock()
+            response.status_code = 200
+            response.json.return_value = mock_snapshots if get_side_effect.calls == 0 else []
+            get_side_effect.calls += 1
+            return response
+
+        get_side_effect.calls = 0
+        mock_client.session.get.side_effect = get_side_effect
+
         snapshots = mock_client.get_volume_snapshots(volume_name)
         
         assert len(snapshots) == 1
@@ -310,8 +315,11 @@ class TestTrueNASClient:
         result = mock_client.delete_snapshot(snapshot_id)
         
         assert result is True
+        from urllib.parse import quote
+
+        encoded_id = quote(snapshot_id, safe="")
         mock_client.session.delete.assert_called_with(
-            f"{mock_client.base_url}/zfs/snapshot/id/{snapshot_id}",
+            f"{mock_client.base_url}/zfs/snapshot/id/{encoded_id}",
             timeout=30
         )
 
@@ -383,7 +391,9 @@ class TestTrueNASClient:
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
-        mock_response.raise_for_status.side_effect = Exception("Server Error")
+        import requests
+
+        mock_response.raise_for_status.side_effect = requests.HTTPError("Server Error")
         mock_client.session.get.return_value = mock_response
         
         with pytest.raises(TrueNASError):
@@ -391,7 +401,9 @@ class TestTrueNASClient:
 
     def test_connection_timeout(self, mock_client):
         """Test handling connection timeouts."""
-        mock_client.session.get.side_effect = TimeoutError("Connection timeout")
+        import requests
+
+        mock_client.session.get.side_effect = requests.Timeout("Connection timeout")
         
         with pytest.raises(TrueNASError, match="timeout"):
             mock_client.get_pools()
