@@ -44,7 +44,7 @@ class Monitor:
             )
 
             return {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "orphaned_pvs": orphaned_pvs,
                 "orphaned_pvcs": orphaned_pvcs,
                 "orphaned_snapshots": orphaned_snapshots,
@@ -291,7 +291,7 @@ class Monitor:
             health = self.check_health()
 
             return {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "summary": {
                     "total_orphaned_resources": len(orphans["orphaned_pvs"])
                     + len(orphans["orphaned_pvcs"])
@@ -395,5 +395,5 @@ class Monitor:
         return {
             "healthy": overall_healthy,
             "components": components,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }

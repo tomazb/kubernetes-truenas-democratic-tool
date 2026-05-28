@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -26,10 +28,45 @@ func testLogger(t *testing.T) *logging.Logger {
 }
 
 func TestNewClient(t *testing.T) {
-	_, err := NewClient(Config{Kubeconfig: "testdata/does-not-exist"})
-	if err == nil {
-		t.Fatal("expected error for missing kubeconfig file")
-	}
+	t.Run("success with minimal kubeconfig", func(t *testing.T) {
+		dir := t.TempDir()
+		kubeconfig := filepath.Join(dir, "config")
+		content := []byte(`apiVersion: v1
+kind: Config
+clusters:
+- name: local
+  cluster:
+    server: https://127.0.0.1:6443
+contexts:
+- name: local
+  context:
+    cluster: local
+    user: test
+current-context: local
+users:
+- name: test
+  user:
+    token: fake-token
+`)
+		if err := os.WriteFile(kubeconfig, content, 0o600); err != nil {
+			t.Fatalf("failed to write kubeconfig: %v", err)
+		}
+
+		c, err := NewClient(Config{Kubeconfig: kubeconfig})
+		if err != nil {
+			t.Fatalf("expected success, got error: %v", err)
+		}
+		if c == nil {
+			t.Fatal("expected non-nil client")
+		}
+	})
+
+	t.Run("missing kubeconfig file", func(t *testing.T) {
+		_, err := NewClient(Config{Kubeconfig: "testdata/does-not-exist"})
+		if err == nil {
+			t.Fatal("expected error for missing kubeconfig file")
+		}
+	})
 }
 
 func TestClient_ListPersistentVolumes(t *testing.T) {

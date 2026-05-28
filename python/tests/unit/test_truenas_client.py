@@ -402,27 +402,15 @@ class TestTrueNASClient:
 
     def test_pagination(self, mock_client):
         """Test handling paginated responses."""
-        # First page
-        mock_response1 = Mock()
-        mock_response1.status_code = 200
-        mock_response1.json.return_value = [{"id": 1, "name": "vol1"}]
-        mock_response1.headers = {"X-Total-Count": "2"}
-
-        # Second page
-        mock_response2 = Mock()
-        mock_response2.status_code = 200
-        mock_response2.json.return_value = [{"id": 2, "name": "vol2"}]
-        mock_response2.headers = {"X-Total-Count": "2"}
-
-        mock_client.session.get.side_effect = [mock_response1, mock_response2]
-
-        # Assuming get_all_pages method exists
-        mock_client._get_all_pages = Mock(
-            return_value=[
-                {"id": 1, "name": "vol1"},
-                {"id": 2, "name": "vol2"},
-            ]
-        )
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {"id": 1, "name": "vol1"},
+            {"id": 2, "name": "vol2"},
+        ]
+        mock_response.headers = {"X-Total-Count": "2"}
+        mock_client.session.get.return_value = mock_response
 
         result = mock_client._get_all_pages("/some/endpoint")
         assert len(result) == 2
+        mock_client.session.get.assert_called_once()

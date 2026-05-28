@@ -114,9 +114,12 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
 
     try:
         with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-    except Exception as e:
-        raise ConfigurationError(f"Failed to load configuration: {e}")
+            config = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError) as e:
+        raise ConfigurationError(f"Failed to load configuration: {e}") from e
+
+    if not isinstance(config, dict):
+        raise ConfigurationError("Configuration root must be a YAML mapping/object")
 
     # Expand environment variables
     config = expand_env_vars(config)

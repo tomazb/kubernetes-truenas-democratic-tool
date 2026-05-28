@@ -34,5 +34,4 @@ class StorageAnalyzer:
         Returns:
             List of orphaned resources
         """
-        # TODO: Implement orphan detection
-        return []
+        raise NotImplementedError("StorageAnalyzer.detect_orphans is not implemented yet")

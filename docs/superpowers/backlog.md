@@ -49,6 +49,24 @@ Copy this template for each new item:
 
 ## Backlog Items
 
+### BL-20260528-python-coverage-gate
+- Status: Planned
+- Priority: P1
+- Milestone: M3
+- Source: PR comment
+- Opened by: agent
+- Date: 2026-05-28
+- In scope of current PR: No (documented interim gate only)
+- Rationale: Python unit coverage is ~71% today; enforcing 90% in CI would block merges until test debt from PR 2–3 work is cleared.
+- Proposed target: PR 7 (CI/release trust + docs accuracy)
+- Related spec(s): `docs/superpowers/plans/2026-05-28-repo-health-remediation.md` (PR 7)
+- Related PR(s)/issue(s): https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/43
+- Description: Raise CI `--cov-fail-under` from interim 70% to 90% once remediation PRs improve suite coverage and contract tests.
+- Acceptance criteria:
+  - [ ] `pytest` coverage for `truenas_storage_monitor` is >=90% locally.
+  - [ ] `.github/workflows/ci.yml` uses `--cov-fail-under=90`.
+  - [ ] `python/pyproject.toml` `fail_under` aligned with CI.
+
 ### BL-20260528-backlog-bootstrap
 - Status: Planned
 - Priority: P2

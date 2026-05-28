@@ -394,7 +394,12 @@ class TrueNASClient:
                             full_name=snap_data.get("id", ""),
                         )
                         all_snapshots.append(snapshot)
-            except Exception:
+            except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+                logger.warning(
+                    "Failed to fetch snapshots for dataset path %s: %s",
+                    dataset_path,
+                    e,
+                )
                 continue
 
         return all_snapshots
@@ -549,10 +554,12 @@ class TrueNASClient:
         limit = 50  # TrueNAS default page size
 
         while True:
-            params.update({"offset": offset, "limit": limit})
+            page_params = {**params, "offset": offset, "limit": limit}
 
             response = self.session.get(
-                f"{self.base_url}{endpoint}", params=params, timeout=self.config.timeout
+                f"{self.base_url}{endpoint}",
+                params=page_params,
+                timeout=self.config.timeout,
             )
             response.raise_for_status()
 
