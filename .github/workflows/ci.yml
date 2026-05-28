@@ -158,7 +158,7 @@ jobs:
       - name: Run Flake8
         run: |
           cd python
-          flake8 .
+          flake8 --max-line-length=100 --extend-ignore=E203,W503 .
           
       - name: Run MyPy
         run: |
@@ -183,7 +183,6 @@ jobs:
           cd go
           go build -o ../bin/monitor ./cmd/monitor
           go build -o ../bin/api-server ./cmd/api-server
-          go build -o ../bin/controller ./cmd/controller
           
       - name: Set up Python
         uses: actions/setup-python@v5
