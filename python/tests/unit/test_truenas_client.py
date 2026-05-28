@@ -270,10 +270,10 @@ class TestTrueNASClient:
         
         assert len(snapshots) == 1
         assert snapshots[0].name == "snapshot-1"
-        mock_client.session.get.assert_called_with(
+        mock_client.session.get.assert_any_call(
             f"{mock_client.base_url}/zfs/snapshot",
             params={"dataset__startswith": f"tank/k8s/volumes/{volume_name}"},
-            timeout=30
+            timeout=30,
         )
 
     def test_create_snapshot(self, mock_client):

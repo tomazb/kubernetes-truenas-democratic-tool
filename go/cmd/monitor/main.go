@@ -38,7 +38,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting TrueNAS Monitor Service",
 		zap.String("version", "0.1.0"),
@@ -144,7 +144,7 @@ func healthCheck() int {
 		fmt.Fprintf(os.Stderr, "Health check failed: %v\n", err)
 		return 1
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Health check passed")
 	return 0

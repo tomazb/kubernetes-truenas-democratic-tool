@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 
 from .k8s_client import K8sClient
@@ -63,7 +63,7 @@ class Monitor:
     def _find_orphaned_pvs(self, k8s_pvs: List[Dict], truenas_volumes: List[Dict], age_threshold_hours: int) -> List[Dict]:
         """Find PVs without corresponding TrueNAS volumes."""
         orphaned = []
-        threshold = datetime.now() - timedelta(hours=age_threshold_hours)
+        threshold = datetime.now(timezone.utc) - timedelta(hours=age_threshold_hours)
         
         for pv in k8s_pvs:
             # Check if PV is from democratic-csi
@@ -81,7 +81,7 @@ class Monitor:
                 if not self._has_corresponding_truenas_volume(pv, truenas_volumes):
                     orphaned.append({
                         'name': pv['metadata']['name'],
-                        'age': str(datetime.now() - created),
+                        'age': str(datetime.now(timezone.utc) - created),
                         'reason': 'No corresponding TrueNAS volume found',
                         'size': pv.get('spec', {}).get('capacity', {}).get('storage', 'Unknown'),
                         'storage_class': pv.get('spec', {}).get('storageClassName', 'Unknown')
@@ -92,7 +92,7 @@ class Monitor:
     def _find_orphaned_pvcs(self, k8s_pvcs: List[Dict], age_threshold_hours: int) -> List[Dict]:
         """Find unbound PVCs older than threshold."""
         orphaned = []
-        threshold = datetime.now() - timedelta(hours=age_threshold_hours)
+        threshold = datetime.now(timezone.utc) - timedelta(hours=age_threshold_hours)
         
         for pvc in k8s_pvcs:
             # Check if PVC is pending/unbound
@@ -107,8 +107,8 @@ class Monitor:
                     orphaned.append({
                         'name': pvc['metadata']['name'],
                         'namespace': pvc['metadata']['namespace'],
-                        'age': str(datetime.now() - created),
-                        'reason': f'Unbound for {datetime.now() - created}',
+                        'age': str(datetime.now(timezone.utc) - created),
+                        'reason': f'Unbound for {datetime.now(timezone.utc) - created}',
                         'size': pvc.get('spec', {}).get('resources', {}).get('requests', {}).get('storage', 'Unknown'),
                         'storage_class': pvc.get('spec', {}).get('storageClassName', 'Unknown')
                     })
@@ -118,7 +118,7 @@ class Monitor:
     def _find_orphaned_snapshots(self, k8s_snapshots: List[Dict], truenas_snapshots: List[Dict], age_threshold_hours: int) -> List[Dict]:
         """Find snapshots without corresponding TrueNAS snapshots."""
         orphaned = []
-        threshold = datetime.now() - timedelta(hours=age_threshold_hours)
+        threshold = datetime.now(timezone.utc) - timedelta(hours=age_threshold_hours)
         
         for snapshot in k8s_snapshots:
             # Check age
@@ -133,7 +133,7 @@ class Monitor:
                     orphaned.append({
                         'name': snapshot['metadata']['name'],
                         'namespace': snapshot['metadata']['namespace'],
-                        'age': str(datetime.now() - created),
+                        'age': str(datetime.now(timezone.utc) - created),
                         'reason': 'No corresponding TrueNAS snapshot found',
                         'source_pvc': snapshot.get('spec', {}).get('source', {}).get('persistentVolumeClaimName', 'Unknown')
                     })
