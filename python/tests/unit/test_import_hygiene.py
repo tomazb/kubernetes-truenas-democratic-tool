@@ -57,8 +57,7 @@ def test_minimal_install_imports_package(tmp_path):
         [
             str(py),
             "-c",
-            "import truenas_storage_monitor; "
-            "import truenas_storage_monitor.monitor",
+            "import truenas_storage_monitor; " "import truenas_storage_monitor.monitor",
         ],
         check=True,
         env={**os.environ, "PYTHONPATH": ""},
