@@ -98,7 +98,7 @@ Suggested worktree layout:
 - **Current phase:** Phase 1 - Security and correctness baseline (implementation starts at PR 1)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-29
-- **Last merged:** PR 2 Python correctness [#52](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/52) (2026-05-29)
+- **Last merged:** PR 3 Python import hygiene [#53](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/53) (2026-05-29)
 - **Next up:** PR 4 - API honesty and endpoint maturity cleanup
 
 ## Milestones
@@ -213,12 +213,14 @@ Suggested worktree layout:
 
 ### PR 3: Python Import and Packaging Hygiene
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** Medium
 - **Focus:** Avoid import side effects and CLI dependency leakage.
 - **Branch/worktree:**
-  - Branch: `bugfix/pr-3-python-import-hygiene`
-  - Worktree: `.worktrees/pr-3-python-import-hygiene`
+  - Branch: `bugfix/pr-3-python-import-hygiene` (merged; removed)
+  - Worktree: `.worktrees/pr-3-python-import-hygiene` (removed)
+- **Merged:** 2026-05-29
+- **Merge commit:** `4a855d7`
 - **Spec/design:** `docs/superpowers/specs/2026-05-28-pr-3-python-import-hygiene-design.md`
 - **Files (expected):**
   - `python/truenas_storage_monitor/__init__.py`
