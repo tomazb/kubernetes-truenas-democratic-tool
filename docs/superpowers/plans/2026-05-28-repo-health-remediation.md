@@ -232,7 +232,7 @@ Suggested worktree layout:
 - **Acceptance criteria:**
   - [x] `import truenas_storage_monitor` succeeds without CLI extras.
   - [x] Test collection/import does not fail due to optional packages.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/53
 
 ### PR 4: API Honesty and Endpoint Maturity Cleanup
 
