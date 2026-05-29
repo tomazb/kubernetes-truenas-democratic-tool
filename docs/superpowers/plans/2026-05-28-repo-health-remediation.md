@@ -99,7 +99,7 @@ Suggested worktree layout:
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-29
 - **Last merged:** PR 2 Python correctness [#52](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/52) (2026-05-29)
-- **Next up:** PR 3 - Python import and packaging hygiene
+- **Next up:** PR 4 - API honesty and endpoint maturity cleanup
 
 ## Milestones
 
@@ -213,7 +213,7 @@ Suggested worktree layout:
 
 ### PR 3: Python Import and Packaging Hygiene
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** Medium
 - **Focus:** Avoid import side effects and CLI dependency leakage.
 - **Branch/worktree:**
@@ -226,12 +226,12 @@ Suggested worktree layout:
   - Python package metadata files
   - New import smoke tests
 - **Implementation steps:**
-  - [ ] Remove CLI-heavy imports from package `__init__`.
-  - [ ] Keep CLI entrypoint separate from library import path.
-  - [ ] Add smoke tests proving core imports work without optional CLI deps.
+  - [x] Remove CLI-heavy imports from package `__init__`.
+  - [x] Keep CLI entrypoint separate from library import path.
+  - [x] Add smoke tests proving core imports work without optional CLI deps.
 - **Acceptance criteria:**
-  - [ ] `import truenas_storage_monitor` succeeds without CLI extras.
-  - [ ] Test collection/import does not fail due to optional packages.
+  - [x] `import truenas_storage_monitor` succeeds without CLI extras.
+  - [x] Test collection/import does not fail due to optional packages.
 - **PR URL:** TBD
 
 ### PR 4: API Honesty and Endpoint Maturity Cleanup
