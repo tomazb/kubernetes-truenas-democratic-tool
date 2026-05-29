@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from datetime import datetime
+from datetime import datetime, timezone
 from kubernetes.client.rest import ApiException
 
 from truenas_storage_monitor.k8s_client import (
@@ -278,7 +278,7 @@ class TestK8sClient:
         pvc1 = Mock()
         pvc1.metadata.name = "pvc-orphaned"
         pvc1.metadata.namespace = "test-namespace"
-        pvc1.metadata.creation_timestamp = datetime(2024, 1, 1)
+        pvc1.metadata.creation_timestamp = datetime(2024, 1, 1, tzinfo=timezone.utc)
         pvc1.spec.storage_class_name = "democratic-csi-nfs"
         pvc1.status.phase = "Pending"
 
@@ -291,6 +291,60 @@ class TestK8sClient:
         assert len(orphans) == 1
         assert orphans[0].resource_type == ResourceType.PERSISTENT_VOLUME_CLAIM
         assert orphans[0].name == "pvc-orphaned"
+
+    def test_find_orphaned_pvcs_empty_list(self, mock_client):
+        """Empty PVC list does not raise during orphan detection."""
+        mock_client.core_v1.list_namespaced_persistent_volume_claim.return_value = Mock(items=[])
+
+        orphans = mock_client.find_orphaned_pvcs(pending_threshold_minutes=60)
+
+        assert orphans == []
+
+    def test_find_orphaned_pvcs_naive_creation_time(self, mock_client):
+        """Naive PVC creation timestamps compare safely against UTC threshold."""
+        pvc1 = Mock()
+        pvc1.metadata.name = "pvc-naive"
+        pvc1.metadata.namespace = "test-namespace"
+        pvc1.metadata.creation_timestamp = datetime(2024, 1, 1)
+        pvc1.spec.storage_class_name = "democratic-csi-nfs"
+        pvc1.status.phase = "Pending"
+
+        mock_client.core_v1.list_namespaced_persistent_volume_claim.return_value = Mock(
+            items=[pvc1]
+        )
+
+        orphans = mock_client.find_orphaned_pvcs(pending_threshold_minutes=60)
+
+        assert len(orphans) == 1
+        assert orphans[0].name == "pvc-naive"
+
+    def test_test_connection_success(self, mock_client):
+        """test_connection succeeds when API responds."""
+        mock_client.core_v1.list_namespace.return_value = Mock(items=[])
+
+        assert mock_client.test_connection() is True
+        mock_client.core_v1.list_namespace.assert_called_once_with(limit=1)
+
+    def test_test_connection_failure(self, mock_client):
+        """test_connection propagates API failures."""
+        mock_client.core_v1.list_namespace.side_effect = ApiException(
+            status=401, reason="Unauthorized"
+        )
+
+        with pytest.raises(ApiException):
+            mock_client.test_connection()
+
+    def test_list_namespaces(self, mock_client):
+        """list_namespaces returns namespace names."""
+        ns1 = Mock()
+        ns1.metadata.name = "default"
+        ns2 = Mock()
+        ns2.metadata.name = "democratic-csi"
+        mock_client.core_v1.list_namespace.return_value = Mock(items=[ns1, ns2])
+
+        names = mock_client.list_namespaces()
+
+        assert names == ["default", "democratic-csi"]
 
     def test_error_handling_api_exception(self, mock_client):
         """Test error handling for Kubernetes API exceptions."""

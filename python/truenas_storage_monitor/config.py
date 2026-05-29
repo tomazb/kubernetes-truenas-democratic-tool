@@ -2,11 +2,14 @@
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlparse
 
 import yaml
 
 from .exceptions import ConfigurationError
+from .k8s_client import K8sConfig
+from .truenas_client import TrueNASConfig
 
 
 class Config:
@@ -65,8 +68,13 @@ class Config:
 
     @property
     def openshift(self) -> Dict[str, Any]:
-        """Get OpenShift configuration."""
+        """Get OpenShift/Kubernetes cluster configuration."""
         return self.get("openshift", {})
+
+    @property
+    def kubernetes(self) -> Dict[str, Any]:
+        """Deprecated alias for :attr:`openshift`."""
+        return self.openshift
 
     @property
     def monitoring(self) -> Dict[str, Any]:
@@ -77,6 +85,72 @@ class Config:
     def logging(self) -> Dict[str, Any]:
         """Get logging configuration."""
         return self.get("logging", {})
+
+    def k8s_config(self) -> K8sConfig:
+        """Build typed Kubernetes client configuration."""
+        cluster = self.openshift
+        return K8sConfig(
+            kubeconfig=cluster.get("kubeconfig"),
+            namespace=cluster.get("namespace"),
+            csi_driver=cluster.get("csi_driver", "org.democratic-csi.nfs"),
+            storage_class=cluster.get("storage_class"),
+            in_cluster=cluster.get("in_cluster", False),
+        )
+
+    def truenas_config(self) -> TrueNASConfig:
+        """Build typed TrueNAS client configuration."""
+        truenas = self.truenas
+        host, port = parse_truenas_url(truenas["url"])
+        insecure = truenas.get("insecure", False)
+        return TrueNASConfig(
+            host=host,
+            port=port,
+            api_key=truenas.get("api_key"),
+            username=truenas.get("username"),
+            password=truenas.get("password"),
+            verify_ssl=not insecure,
+            timeout=parse_timeout_seconds(truenas.get("timeout", 30)),
+            max_retries=truenas.get("max_retries", 3),
+        )
+
+
+def parse_truenas_url(url: str) -> Tuple[str, int]:
+    """Parse a TrueNAS URL into host and port."""
+    normalized = url if "://" in url else f"https://{url}"
+    parsed = urlparse(normalized)
+    host = parsed.hostname or url
+    if parsed.port is not None:
+        port = parsed.port
+    elif parsed.scheme == "http":
+        port = 80
+    else:
+        port = 443
+    return host, port
+
+
+def parse_timeout_seconds(value: Any) -> int:
+    """Parse timeout values such as 30 or '30s' into seconds."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.endswith("s"):
+            return int(stripped[:-1])
+        return int(stripped)
+    raise ConfigurationError(f"Invalid timeout value: {value!r}")
+
+
+def normalize_cluster_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize legacy ``kubernetes`` section to canonical ``openshift``."""
+    if "kubernetes" not in config:
+        return config
+
+    kubernetes = config.pop("kubernetes")
+    if "openshift" not in config:
+        config["openshift"] = kubernetes
+    else:
+        config["openshift"] = merge_configs(kubernetes, config["openshift"])
+    return config
 
 
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
@@ -123,6 +197,7 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
 
     # Expand environment variables
     config = expand_env_vars(config)
+    config = normalize_cluster_config(config)
 
     # Validate configuration
     validate_config(config)
@@ -206,6 +281,8 @@ def validate_config(config: Dict[str, Any]) -> None:
     Raises:
         ConfigurationError: If configuration is invalid
     """
+    config = normalize_cluster_config(config.copy())
+
     # Check required sections
     required_sections = ["openshift", "monitoring"]
     for section in required_sections:

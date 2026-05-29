@@ -9,6 +9,8 @@ from typing import List, Dict, Optional, Any, Generator
 from kubernetes import client as k8s_client, config, watch
 from kubernetes.client.rest import ApiException
 
+from .time_utils import ensure_utc, utc_now
+
 logger = logging.getLogger(__name__)
 
 
@@ -116,6 +118,27 @@ class K8sClient:
         self.core_v1 = k8s_client.CoreV1Api()
         self.storage_v1 = k8s_client.StorageV1Api()
         self.custom_objects = k8s_client.CustomObjectsApi()
+
+    def test_connection(self) -> bool:
+        """Verify connectivity to the Kubernetes API server."""
+        try:
+            self.core_v1.list_namespace(limit=1)
+            logger.info("Successfully connected to Kubernetes API")
+            return True
+        except ApiException as e:
+            logger.error(f"Failed to connect to Kubernetes API: {e}")
+            raise
+
+    def list_namespaces(self) -> List[str]:
+        """List all namespace names in the cluster."""
+        try:
+            namespaces = self.core_v1.list_namespace()
+            names = [item.metadata.name for item in namespaces.items]
+            logger.info(f"Found {len(names)} namespaces")
+            return names
+        except ApiException as e:
+            logger.error(f"Failed to list namespaces: {e}")
+            raise
 
     def get_persistent_volumes(self) -> List[PersistentVolumeInfo]:
         """Get all PersistentVolumes managed by the CSI driver.
@@ -442,7 +465,7 @@ class K8sClient:
                     name=pv.name,
                     namespace=None,
                     volume_handle=pv.volume_handle,
-                    creation_time=pv.creation_time or datetime.now(),
+                    creation_time=pv.creation_time or utc_now(),
                     size=pv.capacity,
                     location="Kubernetes",
                     reason="No PVC bound" if pv.phase == "Available" else "PVC deleted",
@@ -468,12 +491,12 @@ class K8sClient:
         """
         orphans = []
         pvcs = self.get_persistent_volume_claims()
-        threshold = datetime.now(
-            tz=pvcs[0].creation_time.tzinfo if pvcs and pvcs[0].creation_time else None
-        ) - timedelta(minutes=pending_threshold_minutes)
+        threshold = utc_now() - timedelta(minutes=pending_threshold_minutes)
 
         for pvc in pvcs:
-            if pvc.phase == "Pending" and pvc.creation_time and pvc.creation_time < threshold:
+            if pvc.phase != "Pending" or pvc.creation_time is None:
+                continue
+            if ensure_utc(pvc.creation_time) < threshold:
                 orphan = OrphanedResource(
                     resource_type=ResourceType.PERSISTENT_VOLUME_CLAIM,
                     name=pvc.name,
@@ -520,7 +543,7 @@ class K8sClient:
                         "name": pv.metadata.name,
                         "volume_handle": pv.spec.csi.volume_handle,
                         "phase": pv.status.phase,
-                        "timestamp": datetime.now(),
+                        "timestamp": utc_now(),
                     }
         finally:
             w.stop()
@@ -569,7 +592,7 @@ class K8sClient:
                     "namespace": pvc.metadata.namespace,
                     "phase": pvc.status.phase,
                     "volume_name": pvc.spec.volume_name,
-                    "timestamp": datetime.now(),
+                    "timestamp": utc_now(),
                 }
         finally:
             w.stop()

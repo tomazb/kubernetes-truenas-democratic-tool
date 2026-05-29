@@ -98,8 +98,8 @@ Suggested worktree layout:
 - **Current phase:** Phase 1 - Security and correctness baseline (implementation starts at PR 1)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-29
-- **Last merged:** Foundation governance PR [#43](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/43) (2026-05-29)
-- **Next up:** PR 1 - Security baseline hardening
+- **Last merged:** PR 1 security baseline [#44](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/44) (2026-05-29)
+- **Next up:** PR 2 - Python correctness and contract alignment
 
 ## Milestones
 
@@ -159,7 +159,7 @@ Suggested worktree layout:
 
 ### PR 1: Security Baseline Hardening
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** High
 - **Focus:** Secure TLS defaults for TrueNAS communication.
 - **Branch/worktree:**
@@ -184,7 +184,7 @@ Suggested worktree layout:
 
 ### PR 2: Python Correctness and Contract Alignment
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** High
 - **Focus:** Remove runtime mismatches and datetime bugs in monitor path.
 - **Branch/worktree:**
@@ -198,15 +198,15 @@ Suggested worktree layout:
   - `python/tests/unit/test_monitor*.py`
   - `python/tests/unit/test_k8s_client*.py`
 - **Implementation steps:**
-  - [ ] Fix monitor-to-client method contract mismatches.
-  - [ ] Resolve config shape mismatch (`kubernetes` vs `openshift` semantics).
-  - [ ] Standardize datetime comparisons to timezone-aware UTC.
-  - [ ] Add tests for mixed timezone inputs and boundary behavior.
-  - [ ] Validate monitor initialization with real public APIs.
+  - [x] Fix monitor-to-client method contract mismatches.
+  - [x] Resolve config shape mismatch (`kubernetes` vs `openshift` semantics).
+  - [x] Standardize datetime comparisons to timezone-aware UTC.
+  - [x] Add tests for mixed timezone inputs and boundary behavior.
+  - [x] Validate monitor initialization with real public APIs.
 - **Acceptance criteria:**
-  - [ ] No naive/aware datetime comparison failures.
-  - [ ] Monitor initialization and checks use valid client methods.
-  - [ ] Unit tests cover contract and timezone edge cases.
+  - [x] No naive/aware datetime comparison failures.
+  - [x] Monitor initialization and checks use valid client methods.
+  - [x] Unit tests cover contract and timezone edge cases.
 - **PR URL:** TBD
 
 ### PR 3: Python Import and Packaging Hygiene
