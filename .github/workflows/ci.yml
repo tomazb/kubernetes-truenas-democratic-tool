@@ -244,3 +244,36 @@ jobs:
           tags: truenas-cli:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Branch protection requires a check named "CI Pipeline" (workflow name alone is not reported).
+  ci-pipeline:
+    name: CI Pipeline
+    runs-on: ubuntu-latest
+    needs:
+      - go-tests
+      - python-tests
+      - security-scan
+      - lint
+      - container-build
+    if: always()
+    steps:
+      - name: Require all CI jobs to succeed
+        env:
+          GO_TESTS: ${{ needs.go-tests.result }}
+          PYTHON_TESTS: ${{ needs.python-tests.result }}
+          SECURITY_SCAN: ${{ needs.security-scan.result }}
+          LINT: ${{ needs.lint.result }}
+          CONTAINER_BUILD: ${{ needs.container-build.result }}
+        run: |
+          check() {
+            if [ "$2" != "success" ]; then
+              echo "Job $1 finished with result: $2"
+              exit 1
+            fi
+          }
+          check go-tests "$GO_TESTS"
+          check python-tests "$PYTHON_TESTS"
+          check security-scan "$SECURITY_SCAN"
+          check lint "$LINT"
+          check container-build "$CONTAINER_BUILD"
+          echo "All CI jobs passed."
