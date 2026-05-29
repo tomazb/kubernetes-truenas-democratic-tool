@@ -251,7 +251,7 @@ class TestConfigClass:
 
     def test_normalize_cluster_config_rejects_non_mapping(self):
         """Non-mapping kubernetes section raises ConfigurationError."""
-        with pytest.raises(ConfigurationError, match="kubernetes.*mapping"):
+        with pytest.raises(ConfigurationError, match=r"kubernetes.*mapping"):
             normalize_cluster_config({"kubernetes": "invalid"})
 
     def test_parse_timeout_seconds(self):
