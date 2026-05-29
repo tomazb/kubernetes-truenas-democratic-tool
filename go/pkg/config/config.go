@@ -189,8 +189,12 @@ func (c *Config) validate() error {
 	}
 
 	if c.TrueNAS.CAFile != "" {
-		if _, err := os.Stat(c.TrueNAS.CAFile); err != nil {
+		info, err := os.Stat(c.TrueNAS.CAFile)
+		if err != nil {
 			return fmt.Errorf("truenas.ca_file %q: %w", c.TrueNAS.CAFile, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("truenas.ca_file %q must be a regular file", c.TrueNAS.CAFile)
 		}
 	}
 

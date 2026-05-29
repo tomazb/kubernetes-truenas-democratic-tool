@@ -29,7 +29,7 @@ func buildTLSConfig(opts TLSOptions) (*tls.Config, error) {
 	}
 
 	pool, err := x509.SystemCertPool()
-	if err != nil {
+	if err != nil || pool == nil {
 		pool = x509.NewCertPool()
 	}
 

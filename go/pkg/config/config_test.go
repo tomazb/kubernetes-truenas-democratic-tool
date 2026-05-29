@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -471,14 +472,14 @@ truenas:
 func TestLoadTrueNASTLSOptions(t *testing.T) {
 	caPath := writeTestCAFile(t)
 
-	configYAML := `
+	configYAML := fmt.Sprintf(`
 truenas:
   url: https://truenas.example.com
   username: admin
   password: secret123
   insecure: true
-  ca_file: ` + caPath + `
-`
+  ca_file: %q
+`, caPath)
 
 	tmpDir := t.TempDir()
 	configFile := filepath.Join(tmpDir, "config.yaml")
@@ -491,14 +492,33 @@ truenas:
 	assert.Equal(t, caPath, cfg.TrueNAS.CAFile)
 }
 
+func TestValidate_caFileNotRegular(t *testing.T) {
+	dir := t.TempDir()
+	cfg := validConfigForValidate(t)
+	cfg.TrueNAS.CAFile = dir
+
+	err := cfg.validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a regular file")
+}
+
 func TestValidate_missingCAFile(t *testing.T) {
-	cfg := &Config{
+	cfg := validConfigForValidate(t)
+	cfg.TrueNAS.CAFile = "/no/such/ca.pem"
+
+	err := cfg.validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "truenas.ca_file")
+}
+
+func validConfigForValidate(t *testing.T) *Config {
+	t.Helper()
+	return &Config{
 		TrueNAS: TrueNASConfig{
 			URL:      "https://truenas.example.com",
 			Username: "admin",
 			Password: "secret123",
 			Timeout:  "30s",
-			CAFile:   "/no/such/ca.pem",
 		},
 		Monitor: MonitorConfig{
 			ScanInterval:    5 * time.Minute,
@@ -519,10 +539,6 @@ func TestValidate_missingCAFile(t *testing.T) {
 			SessionTimeout: 24 * time.Hour,
 		},
 	}
-
-	err := cfg.validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "truenas.ca_file")
 }
 
 func writeTestCAFile(t *testing.T) string {
