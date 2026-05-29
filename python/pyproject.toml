@@ -23,13 +23,13 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "kubernetes>=28.1.0",
-    "requests>=2.31.0",
+    "kubernetes>=36.0.1",
+    "requests>=2.33.0",
     "pyyaml>=6.0",
     "python-dateutil>=2.8.0",
     # Required by the truenas-monitor console script entry point (cli.py import).
-    "click>=8.1.0",
-    "rich>=13.0.0",
+    "click>=8.4.1",
+    "rich>=15.0.0",
 ]
 
 [project.optional-dependencies]
@@ -53,7 +53,7 @@ dev = [
     "mypy>=1.5.0",
     "bandit>=1.7.0",
     "safety>=2.3.0",
-    "types-requests>=2.31.0",
+    "types-requests>=2.33.0",
     "types-pyyaml>=6.0",
     "pytest-watch>=4.2.0",
     "sphinx>=7.2.0",

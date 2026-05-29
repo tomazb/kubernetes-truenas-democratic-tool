@@ -1,8 +1,8 @@
 # Core library dependencies (matches pyproject.toml [project] dependencies).
 # CLI: pip install -e ".[cli]"  |  Dev+CLI: pip install -e ".[dev,cli]"
-kubernetes>=28.1.0
-requests>=2.31.0
+kubernetes>=36.0.1
+requests>=2.33.0
 pyyaml>=6.0
 python-dateutil>=2.8.0
-click>=8.1.0
-rich>=13.0.0
+click>=8.4.1
+rich>=15.0.0
