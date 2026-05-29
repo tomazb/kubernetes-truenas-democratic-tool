@@ -180,7 +180,7 @@ Suggested worktree layout:
   - [x] No unconditional `InsecureSkipVerify: true`.
   - [x] Default runtime verifies certificates.
   - [x] Tests cover secure and insecure modes.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/44
 
 ### PR 2: Python Correctness and Contract Alignment
 
