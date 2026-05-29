@@ -6,6 +6,14 @@ import sys
 from pathlib import Path
 
 _PYTHON_ROOT = Path(__file__).resolve().parents[2]
+_SUBPROCESS_TIMEOUT = 30
+_VENV_TIMEOUT = 60
+_PIP_TIMEOUT = 180
+_MINIMAL_IMPORT_SCRIPT = "import truenas_storage_monitor; import truenas_storage_monitor.monitor"
+
+
+def _venv_scripts_dir(venv: Path) -> Path:
+    return venv / ("Scripts" if os.name == "nt" else "bin")
 
 
 def _run_isolated_import_check(
@@ -17,6 +25,8 @@ def _run_isolated_import_check(
         cwd=_PYTHON_ROOT,
         capture_output=True,
         text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
+        check=False,
     )
 
 
@@ -48,17 +58,29 @@ def test_core_public_symbols_importable():
 
 
 def test_minimal_install_imports_package(tmp_path):
+    """Core-only editable install imports library (uses pinned requirements.txt)."""
     venv = tmp_path / "venv"
-    subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
-    pip = venv / "bin" / "pip"
-    subprocess.run([str(pip), "install", "-e", str(_PYTHON_ROOT)], check=True)
-    py = venv / "bin" / "python"
+    scripts = _venv_scripts_dir(venv)
     subprocess.run(
-        [
-            str(py),
-            "-c",
-            "import truenas_storage_monitor; " "import truenas_storage_monitor.monitor",
-        ],
+        [sys.executable, "-m", "venv", str(venv)],
         check=True,
+        timeout=_VENV_TIMEOUT,
+    )
+    pip = scripts / "pip"
+    py = scripts / "python"
+    subprocess.run(
+        [str(pip), "install", "-r", str(_PYTHON_ROOT / "requirements.txt")],
+        check=True,
+        timeout=_PIP_TIMEOUT,
+    )
+    subprocess.run(
+        [str(pip), "install", "--no-deps", "-e", str(_PYTHON_ROOT)],
+        check=True,
+        timeout=_PIP_TIMEOUT,
+    )
+    subprocess.run(
+        [str(py), "-c", _MINIMAL_IMPORT_SCRIPT],
+        check=True,
+        timeout=_SUBPROCESS_TIMEOUT,
         env={**os.environ, "PYTHONPATH": ""},
     )

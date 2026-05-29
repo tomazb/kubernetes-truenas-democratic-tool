@@ -32,8 +32,8 @@ Additionally, all runtime and CLI-only dependencies are listed in `[project] dep
 |--------|---------|--------|
 | `import truenas_storage_monitor` | Loads `cli` → click/rich | Does not load `truenas_storage_monitor.cli` |
 | `cli_main` in `__all__` | Exported at package root | Removed; use `from truenas_storage_monitor.cli import main` |
-| `pip install .` | Installs full dependency set | Installs **core** only |
-| `pip install ".[cli]"` | N/A | Installs CLI deps; `truenas-monitor` works |
+| `pip install .` | Installs full dependency set | Installs **core** (incl. `click`/`rich` for console script) |
+| `pip install ".[cli]"` | N/A | Adds reporting CLI extras; `truenas-monitor` works |
 | CI/dev install | `requirements.txt` monolith | `pip install -e ".[dev,cli]"` (requirements.txt documents extras) |
 
 ## Technical approach

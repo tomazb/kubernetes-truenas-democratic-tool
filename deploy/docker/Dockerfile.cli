@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir -r requirements-cli.txt
 COPY python/ .
 
 # Install the package
-RUN pip install -e ".[cli]"
+RUN pip install ".[cli]"
 
 # Create directories for config and data
 RUN mkdir -p /home/appuser/.kube /app/data && \

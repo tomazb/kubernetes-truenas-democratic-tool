@@ -4,3 +4,5 @@ kubernetes>=28.1.0
 requests>=2.31.0
 pyyaml>=6.0
 python-dateutil>=2.8.0
+click>=8.1.0
+rich>=13.0.0
