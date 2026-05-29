@@ -100,7 +100,9 @@ class Config:
     def truenas_config(self) -> TrueNASConfig:
         """Build typed TrueNAS client configuration."""
         truenas = self.truenas
-        host, port = parse_truenas_url(truenas["url"])
+        if "url" not in truenas:
+            raise ConfigurationError("TrueNAS URL is required")
+        host, port, use_https = parse_truenas_url(truenas["url"])
         insecure = truenas.get("insecure", False)
         return TrueNASConfig(
             host=host,
@@ -109,35 +111,50 @@ class Config:
             username=truenas.get("username"),
             password=truenas.get("password"),
             verify_ssl=not insecure,
+            use_https=use_https,
             timeout=parse_timeout_seconds(truenas.get("timeout", 30)),
             max_retries=truenas.get("max_retries", 3),
         )
 
 
-def parse_truenas_url(url: str) -> Tuple[str, int]:
-    """Parse a TrueNAS URL into host and port."""
+def parse_truenas_url(url: str) -> Tuple[str, int, bool]:
+    """Parse a TrueNAS URL into host, port, and TLS scheme flag."""
     normalized = url if "://" in url else f"https://{url}"
-    parsed = urlparse(normalized)
-    host = parsed.hostname or url
-    if parsed.port is not None:
-        port = parsed.port
-    elif parsed.scheme == "http":
-        port = 80
-    else:
-        port = 443
-    return host, port
+    try:
+        parsed = urlparse(normalized)
+        host = parsed.hostname
+        if not host:
+            raise ConfigurationError(f"Invalid TrueNAS URL: {url!r}")
+        if parsed.port is not None:
+            port = parsed.port
+        elif parsed.scheme == "http":
+            port = 80
+        else:
+            port = 443
+        use_https = parsed.scheme != "http"
+        return host, port, use_https
+    except ValueError as exc:
+        raise ConfigurationError(f"Invalid TrueNAS URL: {url!r}") from exc
 
 
 def parse_timeout_seconds(value: Any) -> int:
     """Parse timeout values such as 30 or '30s' into seconds."""
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        stripped = value.strip()
-        if stripped.endswith("s"):
-            return int(stripped[:-1])
-        return int(stripped)
-    raise ConfigurationError(f"Invalid timeout value: {value!r}")
+    if isinstance(value, bool):
+        raise ConfigurationError(f"Invalid timeout value: {value!r}")
+    try:
+        if isinstance(value, int):
+            seconds = value
+        elif isinstance(value, str):
+            stripped = value.strip()
+            seconds = int(stripped[:-1]) if stripped.endswith("s") else int(stripped)
+        else:
+            raise TypeError
+    except (TypeError, ValueError) as exc:
+        raise ConfigurationError(f"Invalid timeout value: {value!r}") from exc
+
+    if seconds <= 0:
+        raise ConfigurationError(f"Timeout must be > 0 seconds: {value!r}")
+    return seconds
 
 
 def normalize_cluster_config(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -145,11 +162,17 @@ def normalize_cluster_config(config: Dict[str, Any]) -> Dict[str, Any]:
     if "kubernetes" not in config:
         return config
 
-    kubernetes = config.pop("kubernetes")
+    kubernetes = config.pop("kubernetes") or {}
+    if not isinstance(kubernetes, dict):
+        raise ConfigurationError("The 'kubernetes' section must be a mapping")
+
     if "openshift" not in config:
         config["openshift"] = kubernetes
     else:
-        config["openshift"] = merge_configs(kubernetes, config["openshift"])
+        openshift = config["openshift"] or {}
+        if not isinstance(openshift, dict):
+            raise ConfigurationError("The 'openshift' section must be a mapping")
+        config["openshift"] = merge_configs(kubernetes, openshift)
     return config
 
 

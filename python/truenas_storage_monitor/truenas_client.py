@@ -37,6 +37,7 @@ class TrueNASConfig:
     username: Optional[str] = None
     password: Optional[str] = None
     verify_ssl: bool = True
+    use_https: bool = True
     timeout: int = 30
     max_retries: int = 3
 
@@ -48,7 +49,7 @@ class TrueNASConfig:
     @property
     def base_url(self) -> str:
         """Get the base URL for TrueNAS API."""
-        protocol = "https" if self.port == 443 else "http"
+        protocol = "https" if self.use_https else "http"
         return f"{protocol}://{self.host}:{self.port}/api/v2.0"
 
 

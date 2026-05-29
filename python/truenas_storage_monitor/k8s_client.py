@@ -47,6 +47,7 @@ class PersistentVolumeInfo:
     capacity: str
     access_modes: List[str]
     phase: str
+    storage_class: Optional[str] = None
     claim_ref: Optional[Dict[str, str]] = None
     creation_time: Optional[datetime] = None
     labels: Dict[str, str] = field(default_factory=dict)
@@ -167,6 +168,7 @@ class K8sClient:
                         capacity=pv.spec.capacity.get("storage", ""),
                         access_modes=pv.spec.access_modes,
                         phase=pv.status.phase,
+                        storage_class=pv.spec.storage_class_name,
                         claim_ref=claim_ref,
                         creation_time=pv.metadata.creation_timestamp,
                         labels=pv.metadata.labels or {},
@@ -465,7 +467,7 @@ class K8sClient:
                     name=pv.name,
                     namespace=None,
                     volume_handle=pv.volume_handle,
-                    creation_time=pv.creation_time or utc_now(),
+                    creation_time=(ensure_utc(pv.creation_time) if pv.creation_time else utc_now()),
                     size=pv.capacity,
                     location="Kubernetes",
                     reason="No PVC bound" if pv.phase == "Available" else "PVC deleted",
@@ -497,12 +499,13 @@ class K8sClient:
             if pvc.phase != "Pending" or pvc.creation_time is None:
                 continue
             if ensure_utc(pvc.creation_time) < threshold:
+                creation_time = ensure_utc(pvc.creation_time)
                 orphan = OrphanedResource(
                     resource_type=ResourceType.PERSISTENT_VOLUME_CLAIM,
                     name=pvc.name,
                     namespace=pvc.namespace,
                     volume_handle=None,
-                    creation_time=pvc.creation_time,
+                    creation_time=creation_time,
                     size=pvc.capacity,
                     location="Kubernetes",
                     reason=f"Pending for over {pending_threshold_minutes} minutes",

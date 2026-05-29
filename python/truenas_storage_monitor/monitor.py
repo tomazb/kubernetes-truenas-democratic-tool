@@ -91,7 +91,7 @@ class Monitor:
                         "age": age,
                         "reason": "No corresponding TrueNAS volume found",
                         "size": pv.capacity or "Unknown",
-                        "storage_class": "Unknown",
+                        "storage_class": pv.storage_class or "Unknown",
                     }
                 )
 
