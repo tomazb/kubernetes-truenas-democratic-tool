@@ -72,6 +72,8 @@ func main() {
 		Username: cfg.TrueNAS.Username,
 		Password: cfg.TrueNAS.Password,
 		Timeout:  timeout,
+		Insecure: cfg.TrueNAS.Insecure,
+		CAFile:   cfg.TrueNAS.CAFile,
 	})
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to initialize TrueNAS client")

@@ -29,8 +29,11 @@ truenas:
   # API key (alternative to username/password)
   # api_key: ${TRUENAS_API_KEY}
   
-  # Skip TLS verification (not recommended for production)
+  # Skip TLS verification (dev/lab only; not recommended for production)
   insecure: false
+
+  # Optional PEM file with CA certificate(s) for TrueNAS TLS (e.g. internal PKI)
+  # ca_file: /etc/truenas-monitor/truenas-ca.pem
   
   # Connection timeout in seconds
   timeout: 30
