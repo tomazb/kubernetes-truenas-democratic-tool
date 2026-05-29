@@ -88,6 +88,9 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
       
@@ -101,7 +104,10 @@ jobs:
           
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
+        # Dependabot/fork PRs run with a read-only token and cannot upload SARIF;
+        # keep the job green there while still uploading on push to protected branches.
         if: always()
+        continue-on-error: true
         with:
           sarif_file: 'trivy-results.sarif'
           
