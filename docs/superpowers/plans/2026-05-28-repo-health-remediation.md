@@ -98,8 +98,8 @@ Suggested worktree layout:
 - **Current phase:** Phase 1 - Security and correctness baseline (implementation starts at PR 1)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-29
-- **Last merged:** PR 1 security baseline [#44](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/44) (2026-05-29)
-- **Next up:** PR 2 - Python correctness and contract alignment
+- **Last merged:** PR 2 Python correctness [#52](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/52) (2026-05-29)
+- **Next up:** PR 3 - Python import and packaging hygiene
 
 ## Milestones
 
@@ -184,12 +184,14 @@ Suggested worktree layout:
 
 ### PR 2: Python Correctness and Contract Alignment
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** High
 - **Focus:** Remove runtime mismatches and datetime bugs in monitor path.
 - **Branch/worktree:**
-  - Branch: `bugfix/pr-2-python-correctness`
-  - Worktree: `.worktrees/pr-2-python-correctness`
+  - Branch: `bugfix/pr-2-python-correctness` (merged; removed)
+  - Worktree: `.worktrees/pr-2-python-correctness` (removed)
+- **Merged:** 2026-05-29
+- **Merge commit:** `d4a3631`
 - **Spec/design:** `docs/superpowers/specs/2026-05-28-pr-2-python-correctness-design.md`
 - **Files (expected):**
   - `python/truenas_storage_monitor/monitor.py`
