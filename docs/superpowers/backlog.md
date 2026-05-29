@@ -68,7 +68,7 @@ Copy this template for each new item:
   - [ ] `python/pyproject.toml` `fail_under` aligned with CI.
 
 ### BL-20260528-backlog-bootstrap
-- Status: Planned
+- Status: Done
 - Priority: P2
 - Milestone: M3
 - Source: Process improvement
@@ -78,9 +78,9 @@ Copy this template for each new item:
 - Rationale: Establish canonical backlog process to support strict PR scope discipline.
 - Proposed target: Immediate process baseline
 - Related spec(s): `docs/superpowers/plans/2026-05-28-repo-health-remediation.md`
-- Related PR(s)/issue(s): N/A
+- Related PR(s)/issue(s): https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/43
 - Description: Create and adopt a single backlog document for out-of-scope but valuable feedback and findings.
 - Acceptance criteria:
-  - [ ] `AGENTS.md` points to this backlog.
-  - [ ] Active plan points to this backlog.
-  - [ ] Out-of-scope PR comments are recorded here with target phase/PR.
+  - [x] `AGENTS.md` points to this backlog.
+  - [x] Active plan points to this backlog.
+  - [x] Out-of-scope PR comments are recorded here with target phase/PR.

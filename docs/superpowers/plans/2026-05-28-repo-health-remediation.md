@@ -95,9 +95,11 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Phase 1 - Security and correctness baseline
+- **Current phase:** Phase 1 - Security and correctness baseline (implementation starts at PR 1)
 - **Primary owner:** TBD
-- **Last updated:** 2026-05-28
+- **Last updated:** 2026-05-29
+- **Last merged:** Foundation governance PR [#43](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/43) (2026-05-29)
+- **Next up:** PR 1 - Security baseline hardening
 
 ## Milestones
 
@@ -138,6 +140,22 @@ Suggested worktree layout:
   - Governance and docs lifecycle controls operationalized.
 
 ## PR Backlog and Execution Tracking
+
+### Foundation: Agent Governance and Tracking (GitHub PR #43)
+
+- **Status:** Done
+- **Risk:** Low (process/docs; bundled CI/Python test alignment)
+- **Focus:** Establish `AGENTS.md`, remediation plan, canonical backlog, specs layout, and contributor pointers.
+- **Branch:** `docs/governance-playbook-and-tracking` (merged; remove local branch after sync)
+- **Merged:** 2026-05-29
+- **Merge commit:** `6a635d3`
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/43
+- **Acceptance criteria:**
+  - [x] `AGENTS.md` is the single source of truth for agent/repo guidance.
+  - [x] Active remediation plan and backlog documents exist under `docs/superpowers/`.
+  - [x] Spec directory and naming convention documented (`docs/superpowers/specs/README.md`).
+  - [x] CI/Python checks aligned enough to merge governance work.
+- **Notes:** Numbered remediation PRs (1-8) remain **Planned**; do not count this foundation PR toward M1-M3 exit criteria.
 
 ### PR 1: Security Baseline Hardening
 
