@@ -257,7 +257,7 @@ Suggested worktree layout:
 - **Acceptance criteria:**
   - [x] No placeholder endpoint returns misleading success data.
   - [x] Endpoint maturity is explicit and test-verified.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/54
 
 ### PR 5: Orphan Detection and Validation Debt
 
