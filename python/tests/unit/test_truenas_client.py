@@ -39,6 +39,16 @@ class TestTrueNASConfig:
         assert config.password == "secret"
         assert config.api_key is None
 
+    def test_config_https_custom_port(self):
+        """Custom HTTPS ports keep TLS in base_url."""
+        config = TrueNASConfig(
+            host="truenas.example.com",
+            port=8443,
+            use_https=True,
+            api_key="test-api-key",
+        )
+        assert config.base_url == "https://truenas.example.com:8443/api/v2.0"
+
     def test_config_validation_no_auth(self):
         """Test configuration validation with no authentication."""
         with pytest.raises(ValueError, match="Either api_key or username/password"):

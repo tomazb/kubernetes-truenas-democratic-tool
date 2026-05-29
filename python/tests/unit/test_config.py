@@ -4,11 +4,15 @@ import pytest
 from unittest.mock import patch, mock_open
 
 from truenas_storage_monitor.config import (
+    Config,
     load_config,
     get_default_config,
     expand_env_vars,
     validate_config,
     merge_configs,
+    normalize_cluster_config,
+    parse_truenas_url,
+    parse_timeout_seconds,
 )
 from truenas_storage_monitor.exceptions import ConfigurationError
 
@@ -130,3 +134,127 @@ class TestConfigModule:
         """Test error when config file not found."""
         with pytest.raises(ConfigurationError, match="Configuration file not found"):
             load_config("/nonexistent/config.yaml")
+
+
+class TestConfigClass:
+    """Test cases for the Config class factory methods."""
+
+    def test_k8s_config_from_openshift(self):
+        """openshift section maps to K8sConfig."""
+        config = Config.__new__(Config)
+        config.data = {
+            "openshift": {
+                "kubeconfig": "/tmp/kubeconfig",
+                "namespace": "democratic-csi",
+                "csi_driver": "org.democratic-csi.iscsi",
+                "in_cluster": True,
+            }
+        }
+
+        k8s_config = config.k8s_config()
+
+        assert k8s_config.kubeconfig == "/tmp/kubeconfig"
+        assert k8s_config.namespace == "democratic-csi"
+        assert k8s_config.csi_driver == "org.democratic-csi.iscsi"
+        assert k8s_config.in_cluster is True
+
+    def test_kubernetes_property_aliases_openshift(self):
+        """kubernetes property returns openshift section."""
+        config = Config.__new__(Config)
+        config.data = {"openshift": {"namespace": "democratic-csi"}}
+
+        assert config.kubernetes == config.openshift
+
+    def test_truenas_config_url_parsing(self):
+        """truenas URL maps to TrueNASConfig host/port."""
+        config = Config.__new__(Config)
+        config.data = {
+            "truenas": {
+                "url": "https://truenas.example.com:8443",
+                "api_key": "secret",
+                "insecure": True,
+                "timeout": "45s",
+            }
+        }
+
+        truenas_config = config.truenas_config()
+
+        assert truenas_config.host == "truenas.example.com"
+        assert truenas_config.port == 8443
+        assert truenas_config.use_https is True
+        assert truenas_config.verify_ssl is False
+        assert truenas_config.timeout == 45
+        assert truenas_config.base_url == "https://truenas.example.com:8443/api/v2.0"
+
+    def test_normalize_cluster_config_kubernetes_only(self):
+        """kubernetes section is normalized to openshift."""
+        config = normalize_cluster_config(
+            {
+                "kubernetes": {"namespace": "democratic-csi", "in_cluster": True},
+                "monitoring": {},
+            }
+        )
+
+        assert "kubernetes" not in config
+        assert config["openshift"]["namespace"] == "democratic-csi"
+        assert config["openshift"]["in_cluster"] is True
+
+    def test_normalize_cluster_config_merge_precedence(self):
+        """openshift values override kubernetes during merge."""
+        config = normalize_cluster_config(
+            {
+                "kubernetes": {"namespace": "legacy", "in_cluster": True},
+                "openshift": {"namespace": "democratic-csi"},
+                "monitoring": {},
+            }
+        )
+
+        assert config["openshift"]["namespace"] == "democratic-csi"
+        assert config["openshift"]["in_cluster"] is True
+
+    def test_parse_truenas_url_host_only(self):
+        """Host-only URLs default to HTTPS port 443."""
+        host, port, use_https = parse_truenas_url("truenas.example.com")
+        assert host == "truenas.example.com"
+        assert port == 443
+        assert use_https is True
+
+    def test_parse_truenas_url_https_custom_port(self):
+        """HTTPS URLs on non-default ports preserve TLS scheme."""
+        host, port, use_https = parse_truenas_url("https://truenas.example.com:8443")
+        assert host == "truenas.example.com"
+        assert port == 8443
+        assert use_https is True
+
+    def test_parse_timeout_seconds_rejects_bool(self):
+        """Boolean timeout values raise ConfigurationError."""
+        with pytest.raises(ConfigurationError, match="Invalid timeout value"):
+            parse_timeout_seconds(True)
+
+    def test_parse_timeout_seconds_rejects_invalid_string(self):
+        """Malformed timeout strings raise ConfigurationError."""
+        with pytest.raises(ConfigurationError, match="Invalid timeout value"):
+            parse_timeout_seconds("30as")
+
+    def test_parse_timeout_seconds_rejects_non_positive(self):
+        """Zero or negative timeouts raise ConfigurationError."""
+        with pytest.raises(ConfigurationError, match="Timeout must be > 0"):
+            parse_timeout_seconds(0)
+
+    def test_truenas_config_missing_url(self):
+        """Missing TrueNAS URL raises ConfigurationError."""
+        config = Config.__new__(Config)
+        config.data = {"truenas": {"api_key": "secret"}}
+
+        with pytest.raises(ConfigurationError, match="TrueNAS URL is required"):
+            config.truenas_config()
+
+    def test_normalize_cluster_config_rejects_non_mapping(self):
+        """Non-mapping kubernetes section raises ConfigurationError."""
+        with pytest.raises(ConfigurationError, match=r"kubernetes.*mapping"):
+            normalize_cluster_config({"kubernetes": "invalid"})
+
+    def test_parse_timeout_seconds(self):
+        """Timeout strings with s suffix parse to integers."""
+        assert parse_timeout_seconds(30) == 30
+        assert parse_timeout_seconds("30s") == 30

@@ -7,6 +7,12 @@ from datetime import datetime, timedelta, timezone
 from truenas_storage_monitor.monitor import Monitor
 from truenas_storage_monitor.config import Config
 from truenas_storage_monitor.exceptions import TrueNASMonitorError
+from truenas_storage_monitor.k8s_client import (
+    K8sConfig,
+    PersistentVolumeClaimInfo,
+    PersistentVolumeInfo,
+)
+from truenas_storage_monitor.truenas_client import TrueNASConfig, VolumeInfo
 
 
 class TestMonitor:
@@ -14,107 +20,117 @@ class TestMonitor:
 
     @pytest.fixture
     def mock_config(self):
-        """Create a mock configuration."""
+        """Create a mock configuration with factory methods."""
         config = Mock(spec=Config)
-        config.kubernetes = {"namespace": "democratic-csi"}
-        config.truenas = {"url": "https://truenas.test"}
+        config.openshift = {"namespace": "democratic-csi"}
+        config.k8s_config.return_value = K8sConfig(namespace="democratic-csi")
+        config.truenas_config.return_value = TrueNASConfig(
+            host="truenas.test",
+            api_key="test-key",
+        )
         return config
 
     @pytest.fixture
     def monitor(self, mock_config):
         """Create a Monitor instance with mocked dependencies."""
         with (
-            patch("truenas_storage_monitor.monitor.K8sClient"),
-            patch("truenas_storage_monitor.monitor.TrueNASClient"),
+            patch("truenas_storage_monitor.monitor.K8sClient") as mock_k8s_cls,
+            patch("truenas_storage_monitor.monitor.TrueNASClient") as mock_truenas_cls,
         ):
-            return Monitor(mock_config)
+            mock_k8s_cls.return_value = Mock()
+            mock_truenas_cls.return_value = Mock()
+            monitor = Monitor(mock_config)
+            return monitor
 
     def test_monitor_initialization(self, mock_config):
-        """Test that Monitor initializes correctly."""
+        """Test that Monitor initializes with typed client configs."""
         with (
             patch("truenas_storage_monitor.monitor.K8sClient") as mock_k8s,
             patch("truenas_storage_monitor.monitor.TrueNASClient") as mock_truenas,
         ):
-
             monitor = Monitor(mock_config)
 
             assert monitor.config == mock_config
-            mock_k8s.assert_called_once_with(mock_config.kubernetes)
-            mock_truenas.assert_called_once_with(mock_config.truenas)
+            mock_config.k8s_config.assert_called_once()
+            mock_config.truenas_config.assert_called_once()
+            mock_k8s.assert_called_once_with(mock_config.k8s_config.return_value)
+            mock_truenas.assert_called_once_with(mock_config.truenas_config.return_value)
 
     def test_find_orphaned_resources_success(self, monitor):
         """Test successful orphaned resource detection."""
-        # Mock data
+        old_created = utc_now() - timedelta(hours=25)
+
         mock_pvs = [
-            {
-                "metadata": {
-                    "name": "pv-test",
-                    "creationTimestamp": (datetime.now(timezone.utc) - timedelta(hours=25))
-                    .isoformat()
-                    .replace("+00:00", "Z"),
-                },
-                "spec": {
-                    "csi": {"driver": "democratic-csi"},
-                    "capacity": {"storage": "10Gi"},
-                    "storageClassName": "truenas-iscsi",
-                },
-            }
+            PersistentVolumeInfo(
+                name="pv-test",
+                volume_handle="vol-test",
+                driver="org.democratic-csi.nfs",
+                capacity="10Gi",
+                access_modes=["ReadWriteOnce"],
+                phase="Bound",
+                creation_time=old_created,
+            )
         ]
 
         mock_pvcs = [
-            {
-                "metadata": {
-                    "name": "pvc-test",
-                    "namespace": "default",
-                    "creationTimestamp": (datetime.now(timezone.utc) - timedelta(hours=25))
-                    .isoformat()
-                    .replace("+00:00", "Z"),
-                },
-                "status": {"phase": "Pending"},
-                "spec": {
-                    "resources": {"requests": {"storage": "5Gi"}},
-                    "storageClassName": "truenas-iscsi",
-                },
-            }
+            PersistentVolumeClaimInfo(
+                name="pvc-test",
+                namespace="default",
+                storage_class="truenas-iscsi",
+                volume_name=None,
+                capacity="5Gi",
+                phase="Pending",
+                creation_time=old_created,
+            )
         ]
 
-        mock_snapshots = []
-        mock_truenas_volumes = []
-        mock_truenas_snapshots = []
+        monitor.k8s_client.get_persistent_volumes.return_value = mock_pvs
+        monitor.k8s_client.get_persistent_volume_claims.return_value = mock_pvcs
+        monitor.k8s_client.get_volume_snapshots.return_value = []
+        monitor.truenas_client.get_volumes.return_value = []
+        monitor.truenas_client.get_snapshots.return_value = []
 
-        # Setup mocks
-        monitor.k8s_client.list_persistent_volumes.return_value = mock_pvs
-        monitor.k8s_client.list_persistent_volume_claims.return_value = mock_pvcs
-        monitor.k8s_client.list_volume_snapshots.return_value = mock_snapshots
-        monitor.truenas_client.list_volumes.return_value = mock_truenas_volumes
-        monitor.truenas_client.list_snapshots.return_value = mock_truenas_snapshots
-
-        # Execute
         result = monitor.find_orphaned_resources()
 
-        # Verify
         assert "timestamp" in result
-        assert "orphaned_pvs" in result
-        assert "orphaned_pvcs" in result
-        assert "orphaned_snapshots" in result
         assert result["total_pvs"] == 1
         assert result["total_pvcs"] == 1
-        assert result["total_snapshots"] == 0
-
-        # Should find orphaned PV (no corresponding TrueNAS volume)
         assert len(result["orphaned_pvs"]) == 1
         assert result["orphaned_pvs"][0]["name"] == "pv-test"
-
-        # Should find orphaned PVC (pending for > 24h)
         assert len(result["orphaned_pvcs"]) == 1
         assert result["orphaned_pvcs"][0]["name"] == "pvc-test"
 
+    def test_find_orphaned_resources_naive_creation_time(self, monitor):
+        """Naive creation timestamps do not raise TypeError."""
+        naive_created = datetime(2020, 1, 1, 0, 0, 0)
+
+        mock_pvs = [
+            PersistentVolumeInfo(
+                name="pv-naive",
+                volume_handle="vol-naive",
+                driver="org.democratic-csi.nfs",
+                capacity="10Gi",
+                access_modes=["ReadWriteOnce"],
+                phase="Bound",
+                creation_time=naive_created,
+            )
+        ]
+
+        monitor.k8s_client.get_persistent_volumes.return_value = mock_pvs
+        monitor.k8s_client.get_persistent_volume_claims.return_value = []
+        monitor.k8s_client.get_volume_snapshots.return_value = []
+        monitor.truenas_client.get_volumes.return_value = []
+        monitor.truenas_client.get_snapshots.return_value = []
+
+        result = monitor.find_orphaned_resources()
+
+        assert len(result["orphaned_pvs"]) == 1
+        assert result["orphaned_pvs"][0]["name"] == "pv-naive"
+
     def test_find_orphaned_resources_error_handling(self, monitor):
         """Test error handling in orphaned resource detection."""
-        # Setup mock to raise exception
-        monitor.k8s_client.list_persistent_volumes.side_effect = Exception("K8s API error")
+        monitor.k8s_client.get_persistent_volumes.side_effect = Exception("K8s API error")
 
-        # Execute and verify exception
         with pytest.raises(TrueNASMonitorError) as exc_info:
             monitor.find_orphaned_resources()
 
@@ -122,25 +138,35 @@ class TestMonitor:
 
     def test_is_democratic_csi_pv(self, monitor):
         """Test democratic-csi PV detection."""
-        # Test positive case
-        pv_democratic = {"spec": {"csi": {"driver": "org.democratic-csi.iscsi"}}}
-        assert monitor._is_democratic_csi_pv(pv_democratic) is True
-
-        # Test TrueNAS driver
-        pv_truenas = {"spec": {"csi": {"driver": "truenas.csi.driver"}}}
-        assert monitor._is_democratic_csi_pv(pv_truenas) is True
-
-        # Test negative case
-        pv_other = {"spec": {"csi": {"driver": "other.csi.driver"}}}
-        assert monitor._is_democratic_csi_pv(pv_other) is False
-
-        # Test missing CSI info
-        pv_no_csi = {"spec": {}}
-        assert monitor._is_democratic_csi_pv(pv_no_csi) is False
+        assert (
+            monitor._is_democratic_csi_pv(
+                PersistentVolumeInfo(
+                    name="pv1",
+                    volume_handle="v1",
+                    driver="org.democratic-csi.iscsi",
+                    capacity="1Gi",
+                    access_modes=[],
+                    phase="Bound",
+                )
+            )
+            is True
+        )
+        assert (
+            monitor._is_democratic_csi_pv(
+                PersistentVolumeInfo(
+                    name="pv2",
+                    volume_handle="v2",
+                    driver="other.csi.driver",
+                    capacity="1Gi",
+                    access_modes=[],
+                    phase="Bound",
+                )
+            )
+            is False
+        )
 
     def test_parse_storage_size(self, monitor):
         """Test storage size parsing."""
-        # Test various formats
         assert monitor._parse_storage_size("1Gi") == 1024**3
         assert monitor._parse_storage_size("5G") == 5 * 1024**3
         assert monitor._parse_storage_size("100Mi") == 100 * 1024**2
@@ -151,65 +177,83 @@ class TestMonitor:
 
     def test_analyze_storage_usage(self, monitor):
         """Test storage usage analysis."""
-        # Mock data
         mock_pvcs = [
-            {"spec": {"resources": {"requests": {"storage": "10Gi"}}}},
-            {"spec": {"resources": {"requests": {"storage": "5Gi"}}}},
+            PersistentVolumeClaimInfo(
+                name="pvc1",
+                namespace="default",
+                storage_class="sc1",
+                volume_name="pv1",
+                capacity="10Gi",
+                phase="Bound",
+            ),
+            PersistentVolumeClaimInfo(
+                name="pvc2",
+                namespace="default",
+                storage_class="sc1",
+                volume_name="pv2",
+                capacity="5Gi",
+                phase="Bound",
+            ),
         ]
 
-        mock_pvs = [{"metadata": {"name": "pv1"}}, {"metadata": {"name": "pv2"}}]
+        mock_pvs = [
+            PersistentVolumeInfo(
+                name="pv1",
+                volume_handle="v1",
+                driver="org.democratic-csi.nfs",
+                capacity="10Gi",
+                access_modes=[],
+                phase="Bound",
+            )
+        ]
         mock_truenas_volumes = [
-            {"used_bytes": 5 * 1024**3},  # 5GB used
-            {"used_bytes": 3 * 1024**3},  # 3GB used
+            VolumeInfo(name="vol1", path="/mnt/1", size=5 * 1024**3, type="FILE", enabled=True),
+            VolumeInfo(name="vol2", path="/mnt/2", size=3 * 1024**3, type="FILE", enabled=True),
         ]
 
-        # Setup mocks
-        monitor.k8s_client.list_persistent_volume_claims.return_value = mock_pvcs
-        monitor.k8s_client.list_persistent_volumes.return_value = mock_pvs
-        monitor.truenas_client.list_volumes.return_value = mock_truenas_volumes
+        monitor.k8s_client.get_persistent_volume_claims.return_value = mock_pvcs
+        monitor.k8s_client.get_persistent_volumes.return_value = mock_pvs
+        monitor.truenas_client.get_volumes.return_value = mock_truenas_volumes
 
-        # Execute
         result = monitor.analyze_storage_usage()
 
-        # Verify
-        assert result["total_allocated_gb"] == 15.0  # 10Gi + 5Gi
-        assert result["total_used_gb"] == 8.0  # 5GB + 3GB
+        assert result["total_allocated_gb"] == 15.0
+        assert result["total_used_gb"] == 8.0
         assert result["total_pvcs"] == 2
-        assert result["total_pvs"] == 2
+        assert result["total_pvs"] == 1
         assert "thin_provisioning_efficiency" in result
         assert "recommendations" in result
 
     def test_check_health(self, monitor):
         """Test health check functionality."""
-        # Setup mocks for healthy state
-        monitor.k8s_client.test_connection.return_value = None
-        monitor.truenas_client.test_connection.return_value = None
-        monitor.k8s_client.list_pods.return_value = [
-            {"status": {"phase": "Running"}},
-            {"status": {"phase": "Running"}},
-        ]
+        monitor.k8s_client.test_connection.return_value = True
+        monitor.truenas_client.test_connection.return_value = True
+        monitor.k8s_client.check_csi_driver_health.return_value = {
+            "healthy": True,
+            "reason": "All pods running and ready",
+            "total_pods": 2,
+            "running_pods": 2,
+            "ready_pods": 2,
+        }
 
-        # Execute
         result = monitor.check_health()
 
-        # Verify
         assert result["healthy"] is True
-        assert "components" in result
         assert result["components"]["kubernetes"]["healthy"] is True
         assert result["components"]["truenas"]["healthy"] is True
         assert result["components"]["csi_driver"]["healthy"] is True
 
     def test_check_health_with_failures(self, monitor):
         """Test health check with component failures."""
-        # Setup mocks for unhealthy state
         monitor.k8s_client.test_connection.side_effect = Exception("Connection failed")
-        monitor.truenas_client.test_connection.return_value = None
-        monitor.k8s_client.list_pods.return_value = []
+        monitor.truenas_client.test_connection.return_value = True
+        monitor.k8s_client.check_csi_driver_health.return_value = {
+            "healthy": False,
+            "reason": "No CSI driver pods found",
+        }
 
-        # Execute
         result = monitor.check_health()
 
-        # Verify
         assert result["healthy"] is False
         assert result["components"]["kubernetes"]["healthy"] is False
         assert result["components"]["truenas"]["healthy"] is True
@@ -217,28 +261,38 @@ class TestMonitor:
 
     def test_generate_recommendations(self, monitor):
         """Test recommendation generation."""
-        # Mock data with large PVC
         mock_pvcs = [
-            {
-                "metadata": {"name": "large-pvc"},
-                "spec": {"resources": {"requests": {"storage": "200Gi"}}},
-            },
-            {
-                "metadata": {"name": "normal-pvc"},
-                "spec": {"resources": {"requests": {"storage": "10Gi"}}},
-            },
+            PersistentVolumeClaimInfo(
+                name="large-pvc",
+                namespace="default",
+                storage_class="sc1",
+                volume_name="pv1",
+                capacity="200Gi",
+                phase="Bound",
+            ),
+            PersistentVolumeClaimInfo(
+                name="normal-pvc",
+                namespace="default",
+                storage_class="sc1",
+                volume_name="pv2",
+                capacity="10Gi",
+                phase="Bound",
+            ),
         ]
 
         mock_truenas_volumes = [
-            {"name": "vol1"},
-            {"name": "vol2"},
-            {"name": "vol3"},  # More volumes than PVCs
+            VolumeInfo(name="vol1", path="/1", size=1, type="FILE", enabled=True),
+            VolumeInfo(name="vol2", path="/2", size=1, type="FILE", enabled=True),
+            VolumeInfo(name="vol3", path="/3", size=1, type="FILE", enabled=True),
         ]
 
-        # Execute
         recommendations = monitor._generate_recommendations(mock_pvcs, mock_truenas_volumes)
 
-        # Verify
         assert len(recommendations) >= 1
         assert any("large-pvc" in rec for rec in recommendations)
         assert any("unused TrueNAS volumes" in rec for rec in recommendations)
+
+
+def utc_now():
+    """Local helper mirroring production UTC helper."""
+    return datetime.now(timezone.utc)
