@@ -1,4 +1,4 @@
--r requirements.txt
+-r requirements-cli.txt
 
 pytest>=7.4.0
 pytest-cov>=4.1.0

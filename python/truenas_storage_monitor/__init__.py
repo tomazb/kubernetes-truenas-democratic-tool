@@ -1,11 +1,14 @@
-"""TrueNAS Storage Monitor - Comprehensive monitoring for OpenShift/Kubernetes with TrueNAS."""
+"""TrueNAS Storage Monitor - Comprehensive monitoring for OpenShift/Kubernetes with TrueNAS.
+
+Library public API. For the CLI, use the ``truenas-monitor`` console script or
+``truenas_storage_monitor.cli:main``.
+"""
 
 __version__ = "0.1.0"
 __author__ = "Your Name"
 __email__ = "your.email@example.com"
 
-# Public API
-from .cli import main as cli_main
+# Public API (library only — CLI is not imported here)
 from .monitor import Monitor
 from .analyzer import StorageAnalyzer
 from .exceptions import (
@@ -19,7 +22,6 @@ from .truenas_client import TrueNASClient, TrueNASConfig, VolumeInfo, SnapshotIn
 from .config import Config, load_config
 
 __all__ = [
-    "cli_main",
     "Monitor",
     "StorageAnalyzer",
     "TrueNASMonitorError",

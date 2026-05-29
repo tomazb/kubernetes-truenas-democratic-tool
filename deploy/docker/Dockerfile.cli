@@ -20,16 +20,16 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY python/requirements.txt python/requirements-dev.txt ./
+COPY python/requirements.txt python/requirements-cli.txt ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies (core + CLI extra)
+RUN pip install --no-cache-dir -r requirements-cli.txt
 
 # Copy Python source code
 COPY python/ .
 
 # Install the package
-RUN pip install -e .
+RUN pip install ".[cli]"
 
 # Create directories for config and data
 RUN mkdir -p /home/appuser/.kube /app/data && \

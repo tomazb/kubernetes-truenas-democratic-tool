@@ -38,8 +38,7 @@ go-security: ## Run Go security checks
 # Python targets
 .PHONY: python-deps
 python-deps: ## Install Python dependencies
-	pip install -r python/requirements.txt
-	pip install -r python/requirements-dev.txt
+	cd python && pip install -e ".[dev,cli]"
 
 .PHONY: python-build
 python-build: ## Build Python package
@@ -148,7 +147,7 @@ helm-uninstall: ## Uninstall Helm deployment
 .PHONY: dev-setup
 dev-setup: ## Set up development environment
 	python -m venv venv
-	./venv/bin/pip install -r python/requirements-dev.txt
+	cd python && ../venv/bin/pip install -e ".[dev,cli]"
 	cd go && go mod download
 	@echo "Development environment ready. Activate Python venv with: source venv/bin/activate"
 
