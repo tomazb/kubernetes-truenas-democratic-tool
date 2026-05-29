@@ -2,6 +2,10 @@
 
 Thank you for your interest in contributing! We welcome contributions from the community and are grateful for any help you can provide.
 
+## Canonical playbook
+
+Repository standards, PR policy, per-PR specs, verification gates, and execution tracking are defined in **[AGENTS.md](AGENTS.md)**. Read it before opening a PR. `CLAUDE.md` is a legacy pointer to the same playbook.
+
 ## Code of Conduct
 
 By participating in this project, you agree to abide by our Code of Conduct. Please read it to understand the expectations for all contributors.

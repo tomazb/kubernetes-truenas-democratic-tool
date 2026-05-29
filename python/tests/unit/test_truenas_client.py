@@ -1,17 +1,11 @@
 """Unit tests for TrueNAS client."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
-import json
+from unittest.mock import Mock, patch
 
 from truenas_storage_monitor.truenas_client import (
     TrueNASClient,
     TrueNASConfig,
-    VolumeInfo,
-    SnapshotInfo,
-    PoolInfo,
-    DatasetInfo,
     TrueNASError,
     AuthenticationError,
 )
@@ -67,14 +61,14 @@ class TestTrueNASClient:
     @pytest.fixture
     def mock_client(self, mock_config):
         """Create TrueNASClient with mocked session."""
-        with patch('truenas_storage_monitor.truenas_client.requests.Session'):
+        with patch("truenas_storage_monitor.truenas_client.requests.Session"):
             client = TrueNASClient(mock_config)
             client.session = Mock()
             return client
 
     def test_client_initialization(self, mock_config):
         """Test client initialization."""
-        with patch('truenas_storage_monitor.truenas_client.requests.Session'):
+        with patch("truenas_storage_monitor.truenas_client.requests.Session"):
             client = TrueNASClient(mock_config)
             assert client.config == mock_config
             assert client.base_url == "https://truenas.example.com:443/api/v2.0"
@@ -85,13 +79,12 @@ class TestTrueNASClient:
         mock_response.status_code = 200
         mock_response.json.return_value = {"username": "root"}
         mock_client.session.get.return_value = mock_response
-        
+
         result = mock_client.test_connection()
-        
+
         assert result is True
         mock_client.session.get.assert_called_once_with(
-            f"{mock_client.base_url}/auth/me",
-            timeout=30
+            f"{mock_client.base_url}/auth/me", timeout=30
         )
 
     def test_authentication_failure(self, mock_client):
@@ -100,7 +93,7 @@ class TestTrueNASClient:
         mock_response.status_code = 401
         mock_response.text = "Unauthorized"
         mock_client.session.get.return_value = mock_response
-        
+
         with pytest.raises(AuthenticationError):
             mock_client.test_connection()
 
@@ -119,14 +112,14 @@ class TestTrueNASClient:
                 "scan": {"state": "FINISHED"},
             }
         ]
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_pools
         mock_client.session.get.return_value = mock_response
-        
+
         pools = mock_client.get_pools()
-        
+
         assert len(pools) == 1
         assert pools[0].name == "tank"
         assert pools[0].status == "ONLINE"
@@ -148,14 +141,14 @@ class TestTrueNASClient:
                 "compressratio": "1.5x",
             }
         ]
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_datasets
         mock_client.session.get.return_value = mock_response
-        
+
         datasets = mock_client.get_datasets()
-        
+
         assert len(datasets) == 1
         assert datasets[0].name == "tank/k8s"
         assert datasets[0].used_size == 107374182400
@@ -175,14 +168,14 @@ class TestTrueNASClient:
                 "ro": False,
             }
         ]
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_extents
         mock_client.session.get.return_value = mock_response
-        
+
         volumes = mock_client.get_volumes()
-        
+
         assert len(volumes) == 1
         assert volumes[0].name == "pvc-abc123"
         assert volumes[0].size == 10737418240
@@ -201,14 +194,14 @@ class TestTrueNASClient:
                 "mapall_group": "wheel",
             }
         ]
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_shares
         mock_client.session.get.return_value = mock_response
-        
+
         shares = mock_client.get_nfs_shares()
-        
+
         assert len(shares) == 1
         assert shares[0]["path"] == "/mnt/tank/k8s/nfs/pvc-def456"
         assert shares[0]["enabled"] is True
@@ -228,14 +221,14 @@ class TestTrueNASClient:
                 },
             }
         ]
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = mock_snapshots
         mock_client.session.get.return_value = mock_response
-        
+
         snapshots = mock_client.get_snapshots()
-        
+
         assert len(snapshots) == 1
         assert snapshots[0].name == "snapshot-1"
         assert snapshots[0].dataset == "tank/k8s/volumes/pvc-abc123"
@@ -255,27 +248,32 @@ class TestTrueNASClient:
                 },
             }
         ]
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_snapshots
-        mock_client.session.get.return_value = mock_response
-        
+
+        def get_side_effect(*_args, **_kwargs):
+            response = Mock()
+            response.status_code = 200
+            response.json.return_value = mock_snapshots if get_side_effect.calls == 0 else []
+            get_side_effect.calls += 1
+            return response
+
+        get_side_effect.calls = 0
+        mock_client.session.get.side_effect = get_side_effect
+
         snapshots = mock_client.get_volume_snapshots(volume_name)
-        
+
         assert len(snapshots) == 1
         assert snapshots[0].name == "snapshot-1"
-        mock_client.session.get.assert_called_with(
+        mock_client.session.get.assert_any_call(
             f"{mock_client.base_url}/zfs/snapshot",
             params={"dataset__startswith": f"tank/k8s/volumes/{volume_name}"},
-            timeout=30
+            timeout=30,
         )
 
     def test_create_snapshot(self, mock_client):
         """Test creating a snapshot."""
         dataset = "tank/k8s/volumes/pvc-abc123"
         snapshot_name = "manual-snapshot-1"
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -284,9 +282,9 @@ class TestTrueNASClient:
             "snapshot_name": snapshot_name,
         }
         mock_client.session.post.return_value = mock_response
-        
+
         result = mock_client.create_snapshot(dataset, snapshot_name)
-        
+
         assert result["id"] == f"{dataset}@{snapshot_name}"
         mock_client.session.post.assert_called_with(
             f"{mock_client.base_url}/zfs/snapshot",
@@ -295,30 +293,32 @@ class TestTrueNASClient:
                 "name": snapshot_name,
                 "recursive": False,
             },
-            timeout=30
+            timeout=30,
         )
 
     def test_delete_snapshot(self, mock_client):
         """Test deleting a snapshot."""
         snapshot_id = "tank/k8s/volumes/pvc-abc123@snapshot-1"
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = True
         mock_client.session.delete.return_value = mock_response
-        
+
         result = mock_client.delete_snapshot(snapshot_id)
-        
+
         assert result is True
+        from urllib.parse import quote
+
+        encoded_id = quote(snapshot_id, safe="")
         mock_client.session.delete.assert_called_with(
-            f"{mock_client.base_url}/zfs/snapshot/id/{snapshot_id}",
-            timeout=30
+            f"{mock_client.base_url}/zfs/snapshot/id/{encoded_id}", timeout=30
         )
 
     def test_get_dataset_usage(self, mock_client):
         """Test getting dataset usage statistics."""
         dataset = "tank/k8s"
-        
+
         mock_dataset_info = {
             "id": dataset,
             "name": dataset,
@@ -333,14 +333,14 @@ class TestTrueNASClient:
                 }
             ],
         }
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [mock_dataset_info]
         mock_client.session.get.return_value = mock_response
-        
+
         usage = mock_client.get_dataset_usage(dataset)
-        
+
         assert usage["used"] == 107374182400
         assert usage["available"] == 442381127680
         assert len(usage["children"]) == 1
@@ -352,28 +352,28 @@ class TestTrueNASClient:
             {"name": "pvc-orphaned", "path": "/mnt/tank/k8s/volumes/pvc-orphaned"},
             {"name": "pvc-active", "path": "/mnt/tank/k8s/volumes/pvc-active"},
         ]
-        
+
         # Mock NFS shares
         mock_shares = [
             {"path": "/mnt/tank/k8s/nfs/pvc-nfs-orphaned"},
             {"path": "/mnt/tank/k8s/nfs/pvc-nfs-active"},
         ]
-        
+
         mock_response1 = Mock()
         mock_response1.status_code = 200
         mock_response1.json.return_value = mock_extents
-        
+
         mock_response2 = Mock()
         mock_response2.status_code = 200
         mock_response2.json.return_value = mock_shares
-        
+
         mock_client.session.get.side_effect = [mock_response1, mock_response2]
-        
+
         # K8s volumes to check against
         k8s_volumes = ["pvc-active", "pvc-nfs-active"]
-        
+
         orphans = mock_client.find_orphaned_volumes(k8s_volumes)
-        
+
         assert len(orphans) == 2
         assert any(o.name == "pvc-orphaned" for o in orphans)
         assert any(o.name == "pvc-nfs-orphaned" for o in orphans)
@@ -383,40 +383,34 @@ class TestTrueNASClient:
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
-        mock_response.raise_for_status.side_effect = Exception("Server Error")
+        import requests
+
+        mock_response.raise_for_status.side_effect = requests.HTTPError("Server Error")
         mock_client.session.get.return_value = mock_response
-        
+
         with pytest.raises(TrueNASError):
             mock_client.get_pools()
 
     def test_connection_timeout(self, mock_client):
         """Test handling connection timeouts."""
-        mock_client.session.get.side_effect = TimeoutError("Connection timeout")
-        
+        import requests
+
+        mock_client.session.get.side_effect = requests.Timeout("Connection timeout")
+
         with pytest.raises(TrueNASError, match="timeout"):
             mock_client.get_pools()
 
     def test_pagination(self, mock_client):
         """Test handling paginated responses."""
-        # First page
-        mock_response1 = Mock()
-        mock_response1.status_code = 200
-        mock_response1.json.return_value = [{"id": 1, "name": "vol1"}]
-        mock_response1.headers = {"X-Total-Count": "2"}
-        
-        # Second page
-        mock_response2 = Mock()
-        mock_response2.status_code = 200
-        mock_response2.json.return_value = [{"id": 2, "name": "vol2"}]
-        mock_response2.headers = {"X-Total-Count": "2"}
-        
-        mock_client.session.get.side_effect = [mock_response1, mock_response2]
-        
-        # Assuming get_all_pages method exists
-        mock_client._get_all_pages = Mock(return_value=[
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
             {"id": 1, "name": "vol1"},
             {"id": 2, "name": "vol2"},
-        ])
-        
+        ]
+        mock_response.headers = {"X-Total-Count": "2"}
+        mock_client.session.get.return_value = mock_response
+
         result = mock_client._get_all_pages("/some/endpoint")
         assert len(result) == 2
+        mock_client.session.get.assert_called_once()

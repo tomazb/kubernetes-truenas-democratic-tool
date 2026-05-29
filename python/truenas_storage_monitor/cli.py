@@ -9,7 +9,6 @@ from rich.table import Table
 
 from . import __version__
 from .config import load_config
-from .monitor import Monitor
 from .exceptions import TrueNASMonitorError
 
 console = Console()
@@ -35,7 +34,7 @@ console = Console()
 def cli(ctx: click.Context, config: Optional[str], log_level: str) -> None:
     """TrueNAS Storage Monitor - Comprehensive monitoring for OpenShift/Kubernetes with TrueNAS."""
     ctx.ensure_object(dict)
-    
+
     try:
         ctx.obj["config"] = load_config(config)
         ctx.obj["log_level"] = log_level
@@ -56,9 +55,9 @@ def cli(ctx: click.Context, config: Optional[str], log_level: str) -> None:
 def orphans(ctx: click.Context, format: str) -> None:
     """Check for orphaned resources."""
     console.print("[yellow]Checking for orphaned resources...[/yellow]")
-    
+
     # TODO: Implement orphan detection
-    
+
     if format == "table":
         table = Table(title="Orphaned Resources")
         table.add_column("Type", style="cyan")
@@ -66,11 +65,11 @@ def orphans(ctx: click.Context, format: str) -> None:
         table.add_column("Namespace")
         table.add_column("Age")
         table.add_column("Size")
-        
+
         # Example data
         table.add_row("PV", "pvc-12345", "default", "7 days", "10Gi")
         table.add_row("Snapshot", "snapshot-67890", "production", "30 days", "5Gi")
-        
+
         console.print(table)
     else:
         console.print(f"[red]Format '{format}' not yet implemented[/red]")
@@ -88,9 +87,9 @@ def orphans(ctx: click.Context, format: str) -> None:
 def analyze(ctx: click.Context, trend: str) -> None:
     """Analyze storage usage and trends."""
     console.print(f"[yellow]Analyzing storage trends for the last {trend}...[/yellow]")
-    
+
     # TODO: Implement storage analysis
-    
+
     console.print("\n[green]Storage Analysis Summary:[/green]")
     console.print("• Total Allocated: 500Gi")
     console.print("• Total Used: 350Gi (70%)")
@@ -118,9 +117,9 @@ def analyze(ctx: click.Context, trend: str) -> None:
 def report(ctx: click.Context, output: str, format: str) -> None:
     """Generate a comprehensive storage report."""
     console.print(f"[yellow]Generating {format} report...[/yellow]")
-    
+
     # TODO: Implement report generation
-    
+
     console.print(f"[green]Report saved to: {output}[/green]")
 
 
@@ -129,7 +128,7 @@ def report(ctx: click.Context, output: str, format: str) -> None:
 def validate(ctx: click.Context) -> None:
     """Validate configuration and connectivity."""
     console.print("[yellow]Validating configuration...[/yellow]")
-    
+
     checks = [
         ("Configuration file", True),
         ("Kubernetes connection", True),
@@ -137,17 +136,17 @@ def validate(ctx: click.Context) -> None:
         ("Democratic-CSI namespace", True),
         ("RBAC permissions", True),
     ]
-    
+
     table = Table(title="Validation Results")
     table.add_column("Check", style="cyan")
     table.add_column("Status", style="green")
-    
+
     for check, status in checks:
         status_text = "[green]✓ PASS[/green]" if status else "[red]✗ FAIL[/red]"
         table.add_row(check, status_text)
-    
+
     console.print(table)
-    
+
     if not all(status for _, status in checks):
         console.print("\n[red]Some checks failed. Please review the configuration.[/red]")
         sys.exit(1)
@@ -171,10 +170,11 @@ def monitor(ctx: click.Context, daemon: bool) -> None:
     else:
         console.print("[yellow]Starting monitor in foreground...[/yellow]")
         console.print("[cyan]Press Ctrl+C to stop[/cyan]")
-        
+
         try:
             # TODO: Implement monitoring loop
             import time
+
             while True:
                 time.sleep(60)
         except KeyboardInterrupt:

@@ -118,11 +118,27 @@ make build-all
 make docker-build-all
 ```
 
+## Contributor governance
+
+[AGENTS.md](AGENTS.md) is the canonical playbook for contributors and automation agents. It replaces the long-form `CLAUDE.md` guidance (now a short pointer).
+
+**What changed for contributors and PRs:**
+
+- Standards, verification gates, and PR checklists live in `AGENTS.md` (not scattered session notes).
+- Each implementation PR needs a design spec under `docs/superpowers/specs/` before coding starts.
+- Active remediation work is tracked in `docs/superpowers/plans/2026-05-28-repo-health-remediation.md`; out-of-scope items go to `docs/superpowers/backlog.md`.
+- Review threads must be addressed or explicitly deferred before merge (see AGENTS.md).
+
+**Migration:** If you bookmarked `CLAUDE.md` for process rules, use [AGENTS.md](AGENTS.md) instead. Technical architecture docs below are unchanged.
+
 ## Documentation
 
+- [AGENTS.md](AGENTS.md) - Contributor playbook, PR policy, and verification gates
 - [Architecture](docs/ARCHITECTURE.md) - System design and components
 - [PRD](docs/PRD.md) - Product requirements and roadmap
-- [CLAUDE.md](CLAUDE.md) - Development guidelines
+- [CLAUDE.md](CLAUDE.md) - Pointer to AGENTS.md (legacy entry point)
+- [Remediation plan](docs/superpowers/plans/2026-05-28-repo-health-remediation.md) - Phased repo health work
+- [Backlog](docs/superpowers/backlog.md) - Canonical out-of-scope intake
 - [API Reference](https://yourusername.github.io/kubernetes-truenas-democratic-tool/)
 
 ## Security
@@ -137,7 +153,7 @@ This tool follows security best practices:
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Start with [AGENTS.md](AGENTS.md) for PR requirements, specs, and verification commands, then see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and workflow details.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)

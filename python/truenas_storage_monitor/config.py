@@ -11,84 +11,84 @@ from .exceptions import ConfigurationError
 
 class Config:
     """Configuration class for TrueNAS Storage Monitor."""
-    
+
     def __init__(self, config_path: Optional[str] = None):
         """Initialize configuration.
-        
+
         Args:
             config_path: Path to configuration file
         """
         self.data = load_config(config_path)
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value by key.
-        
+
         Args:
             key: Configuration key (supports dot notation)
             default: Default value if key not found
-            
+
         Returns:
             Configuration value
         """
-        keys = key.split('.')
+        keys = key.split(".")
         value = self.data
-        
+
         for k in keys:
             if isinstance(value, dict) and k in value:
                 value = value[k]
             else:
                 return default
-        
+
         return value
-    
+
     def set(self, key: str, value: Any) -> None:
         """Set configuration value by key.
-        
+
         Args:
             key: Configuration key (supports dot notation)
             value: Value to set
         """
-        keys = key.split('.')
+        keys = key.split(".")
         config = self.data
-        
+
         for k in keys[:-1]:
             if k not in config:
                 config[k] = {}
             config = config[k]
-        
+
         config[keys[-1]] = value
-    
+
     @property
     def truenas(self) -> Dict[str, Any]:
         """Get TrueNAS configuration."""
-        return self.get('truenas', {})
-    
+        return self.get("truenas", {})
+
     @property
     def openshift(self) -> Dict[str, Any]:
         """Get OpenShift configuration."""
-        return self.get('openshift', {})
-    
+        return self.get("openshift", {})
+
     @property
     def monitoring(self) -> Dict[str, Any]:
         """Get monitoring configuration."""
-        return self.get('monitoring', {})
-    
+        return self.get("monitoring", {})
+
     @property
     def logging(self) -> Dict[str, Any]:
         """Get logging configuration."""
-        return self.get('logging', {})
+        return self.get("logging", {})
 
 
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """Load configuration from file.
-    
+
     Args:
         config_path: Path to configuration file. If not provided, will search
                     in default locations.
-    
+
     Returns:
         Configuration dictionary
-        
+
     Raises:
         ConfigurationError: If configuration cannot be loaded or is invalid
     """
@@ -103,7 +103,7 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
             Path.home() / ".config" / "truenas-monitor" / "config.yaml",
             Path("/etc/truenas-monitor/config.yaml"),
         ]
-        
+
         for path in search_paths:
             if path.exists():
                 config_path = str(path)
@@ -111,19 +111,22 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         else:
             # No config file found, use defaults
             return get_default_config()
-    
+
     try:
         with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-    except Exception as e:
-        raise ConfigurationError(f"Failed to load configuration: {e}")
-    
+            config = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError) as e:
+        raise ConfigurationError(f"Failed to load configuration: {e}") from e
+
+    if not isinstance(config, dict):
+        raise ConfigurationError("Configuration root must be a YAML mapping/object")
+
     # Expand environment variables
     config = expand_env_vars(config)
-    
+
     # Validate configuration
     validate_config(config)
-    
+
     return config
 
 
@@ -196,10 +199,10 @@ def expand_env_vars(config: Any) -> Any:
 
 def validate_config(config: Dict[str, Any]) -> None:
     """Validate configuration.
-    
+
     Args:
         config: Configuration dictionary
-        
+
     Raises:
         ConfigurationError: If configuration is invalid
     """
@@ -208,54 +211,52 @@ def validate_config(config: Dict[str, Any]) -> None:
     for section in required_sections:
         if section not in config:
             raise ConfigurationError(f"Missing required configuration section: {section}")
-    
+
     # Validate TrueNAS configuration if present
     if "truenas" in config:
         truenas = config["truenas"]
         if "url" not in truenas:
             raise ConfigurationError("TrueNAS URL is required")
-        
+
         # Check for authentication
         has_password = "username" in truenas and "password" in truenas
         has_api_key = "api_key" in truenas
-        
+
         if not has_password and not has_api_key:
             raise ConfigurationError(
                 "TrueNAS authentication required: provide username/password or api_key"
             )
-    
+
     # Validate thresholds
     monitoring = config.get("monitoring", {})
     storage = monitoring.get("storage", {})
-    
+
     warning = storage.get("pool_warning_threshold", 80)
     critical = storage.get("pool_critical_threshold", 90)
-    
+
     if warning >= critical:
-        raise ConfigurationError(
-            "Pool warning threshold must be less than critical threshold"
-        )
-    
+        raise ConfigurationError("Pool warning threshold must be less than critical threshold")
+
     if not 0 < warning <= 100 or not 0 < critical <= 100:
         raise ConfigurationError("Thresholds must be between 0 and 100")
 
 
 def merge_configs(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
     """Deep merge two configuration dictionaries.
-    
+
     Args:
         base: Base configuration
         override: Configuration to override with
-        
+
     Returns:
         Merged configuration
     """
     result = base.copy()
-    
+
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = merge_configs(result[key], value)
         else:
             result[key] = value
-    
+
     return result

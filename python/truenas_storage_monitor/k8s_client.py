@@ -9,12 +9,12 @@ from typing import List, Dict, Optional, Any, Generator
 from kubernetes import client as k8s_client, config, watch
 from kubernetes.client.rest import ApiException
 
-
 logger = logging.getLogger(__name__)
 
 
 class ResourceType(Enum):
     """Types of Kubernetes resources."""
+
     PERSISTENT_VOLUME = "PersistentVolume"
     PERSISTENT_VOLUME_CLAIM = "PersistentVolumeClaim"
     VOLUME_SNAPSHOT = "VolumeSnapshot"
@@ -27,6 +27,7 @@ class ResourceType(Enum):
 @dataclass
 class K8sConfig:
     """Configuration for Kubernetes client."""
+
     kubeconfig: Optional[str] = None
     namespace: Optional[str] = None
     csi_driver: str = "org.democratic-csi.nfs"
@@ -37,6 +38,7 @@ class K8sConfig:
 @dataclass
 class PersistentVolumeInfo:
     """Information about a PersistentVolume."""
+
     name: str
     volume_handle: str
     driver: str
@@ -52,6 +54,7 @@ class PersistentVolumeInfo:
 @dataclass
 class PersistentVolumeClaimInfo:
     """Information about a PersistentVolumeClaim."""
+
     name: str
     namespace: str
     storage_class: Optional[str]
@@ -66,6 +69,7 @@ class PersistentVolumeClaimInfo:
 @dataclass
 class VolumeSnapshotInfo:
     """Information about a VolumeSnapshot."""
+
     name: str
     namespace: str
     source_pvc: Optional[str]
@@ -79,6 +83,7 @@ class VolumeSnapshotInfo:
 @dataclass
 class OrphanedResource:
     """Information about an orphaned resource."""
+
     resource_type: ResourceType
     name: str
     namespace: Optional[str]
@@ -95,33 +100,33 @@ class K8sClient:
 
     def __init__(self, config_obj: K8sConfig):
         """Initialize Kubernetes client.
-        
+
         Args:
             config_obj: Kubernetes client configuration
         """
         self.config = config_obj
-        
+
         # Load Kubernetes configuration
         if config_obj.in_cluster:
             config.load_incluster_config()
         else:
             config.load_kube_config(config_file=config_obj.kubeconfig)
-        
+
         # Initialize API clients
         self.core_v1 = k8s_client.CoreV1Api()
         self.storage_v1 = k8s_client.StorageV1Api()
         self.custom_objects = k8s_client.CustomObjectsApi()
-        
+
     def get_persistent_volumes(self) -> List[PersistentVolumeInfo]:
         """Get all PersistentVolumes managed by the CSI driver.
-        
+
         Returns:
             List of PersistentVolumeInfo objects
         """
         try:
             pvs = self.core_v1.list_persistent_volume()
             result = []
-            
+
             for pv in pvs.items:
                 # Filter by CSI driver if specified
                 if pv.spec.csi and pv.spec.csi.driver == self.config.csi_driver:
@@ -131,7 +136,7 @@ class K8sClient:
                             "name": pv.spec.claim_ref.name,
                             "namespace": pv.spec.claim_ref.namespace,
                         }
-                    
+
                     pv_info = PersistentVolumeInfo(
                         name=pv.metadata.name,
                         volume_handle=pv.spec.csi.volume_handle,
@@ -145,37 +150,44 @@ class K8sClient:
                         annotations=pv.metadata.annotations or {},
                     )
                     result.append(pv_info)
-            
-            logger.info(f"Found {len(result)} PersistentVolumes for driver {self.config.csi_driver}")
+
+            logger.info(
+                f"Found {len(result)} PersistentVolumes for driver {self.config.csi_driver}"
+            )
             return result
-            
+
         except ApiException as e:
             logger.error(f"Failed to list PersistentVolumes: {e}")
             raise
 
-    def get_persistent_volume_claims(self, namespace: Optional[str] = None) -> List[PersistentVolumeClaimInfo]:
+    def get_persistent_volume_claims(
+        self, namespace: Optional[str] = None
+    ) -> List[PersistentVolumeClaimInfo]:
         """Get all PersistentVolumeClaims.
-        
+
         Args:
             namespace: Namespace to filter by (None for all namespaces)
-            
+
         Returns:
             List of PersistentVolumeClaimInfo objects
         """
         try:
             namespace = namespace or self.config.namespace
-            
+
             if namespace:
                 pvcs = self.core_v1.list_namespaced_persistent_volume_claim(namespace)
             else:
                 pvcs = self.core_v1.list_persistent_volume_claim_for_all_namespaces()
-            
+
             result = []
             for pvc in pvcs.items:
                 # Filter by storage class if specified
-                if self.config.storage_class and pvc.spec.storage_class_name != self.config.storage_class:
+                if (
+                    self.config.storage_class
+                    and pvc.spec.storage_class_name != self.config.storage_class
+                ):
                     continue
-                
+
                 pvc_info = PersistentVolumeClaimInfo(
                     name=pvc.metadata.name,
                     namespace=pvc.metadata.namespace,
@@ -188,20 +200,20 @@ class K8sClient:
                     annotations=pvc.metadata.annotations or {},
                 )
                 result.append(pvc_info)
-            
+
             logger.info(f"Found {len(result)} PersistentVolumeClaims")
             return result
-            
+
         except ApiException as e:
             logger.error(f"Failed to list PersistentVolumeClaims: {e}")
             raise
 
     def get_volume_snapshots(self, namespace: Optional[str] = None) -> List[VolumeSnapshotInfo]:
         """Get all VolumeSnapshots.
-        
+
         Args:
             namespace: Namespace to filter by (None for all namespaces)
-            
+
         Returns:
             List of VolumeSnapshotInfo objects
         """
@@ -210,7 +222,7 @@ class K8sClient:
             group = "snapshot.storage.k8s.io"
             version = "v1beta1"
             plural = "volumesnapshots"
-            
+
             if namespace:
                 snapshots = self.custom_objects.list_namespaced_custom_object(
                     group=group,
@@ -224,49 +236,53 @@ class K8sClient:
                     version=version,
                     plural=plural,
                 )
-            
+
             result = []
             for snapshot in snapshots.get("items", []):
                 metadata = snapshot.get("metadata", {})
                 spec = snapshot.get("spec", {})
                 status = snapshot.get("status", {})
-                
+
                 snapshot_info = VolumeSnapshotInfo(
                     name=metadata.get("name"),
                     namespace=metadata.get("namespace"),
                     source_pvc=spec.get("source", {}).get("persistentVolumeClaimName"),
                     snapshot_class=spec.get("volumeSnapshotClassName"),
                     ready_to_use=status.get("readyToUse", False),
-                    creation_time=datetime.fromisoformat(
-                        metadata.get("creationTimestamp", "").replace("Z", "+00:00")
-                    ) if metadata.get("creationTimestamp") else None,
+                    creation_time=(
+                        datetime.fromisoformat(
+                            metadata.get("creationTimestamp", "").replace("Z", "+00:00")
+                        )
+                        if metadata.get("creationTimestamp")
+                        else None
+                    ),
                     labels=metadata.get("labels", {}),
                     annotations=metadata.get("annotations", {}),
                 )
                 result.append(snapshot_info)
-            
+
             logger.info(f"Found {len(result)} VolumeSnapshots")
             return result
-            
+
         except ApiException as e:
             logger.error(f"Failed to list VolumeSnapshots: {e}")
             raise
 
     def get_storage_classes(self) -> List[Dict[str, Any]]:
         """Get all StorageClasses for the CSI driver.
-        
+
         Returns:
             List of StorageClass information
         """
         try:
             scs = self.storage_v1.list_storage_class()
             result = []
-            
+
             for sc in scs.items:
                 # Filter by provisioner if CSI driver is specified
                 if self.config.csi_driver and sc.provisioner != self.config.csi_driver:
                     continue
-                
+
                 sc_info = {
                     "name": sc.metadata.name,
                     "provisioner": sc.provisioner,
@@ -276,31 +292,30 @@ class K8sClient:
                     "allow_volume_expansion": sc.allow_volume_expansion or False,
                 }
                 result.append(sc_info)
-            
+
             logger.info(f"Found {len(result)} StorageClasses")
             return result
-            
+
         except ApiException as e:
             logger.error(f"Failed to list StorageClasses: {e}")
             raise
 
     def get_csi_nodes(self) -> List[Dict[str, Any]]:
         """Get all CSINode objects.
-        
+
         Returns:
             List of CSINode information
         """
         try:
             nodes = self.storage_v1.list_csi_node()
             result = []
-            
+
             for node in nodes.items:
                 # Check if node has our CSI driver
                 has_driver = any(
-                    driver.name == self.config.csi_driver 
-                    for driver in node.spec.drivers
+                    driver.name == self.config.csi_driver for driver in node.spec.drivers
                 )
-                
+
                 if has_driver:
                     node_info = {
                         "name": node.metadata.name,
@@ -308,23 +323,25 @@ class K8sClient:
                             {
                                 "name": driver.name,
                                 "node_id": driver.node_id,
-                                "allocatable": driver.allocatable.as_dict() if driver.allocatable else None,
+                                "allocatable": (
+                                    driver.allocatable.as_dict() if driver.allocatable else None
+                                ),
                             }
                             for driver in node.spec.drivers
                         ],
                     }
                     result.append(node_info)
-            
+
             logger.info(f"Found {len(result)} CSINodes with driver {self.config.csi_driver}")
             return result
-            
+
         except ApiException as e:
             logger.error(f"Failed to list CSINodes: {e}")
             raise
 
     def get_csi_driver_pods(self) -> List[Dict[str, Any]]:
         """Get all pods related to the CSI driver.
-        
+
         Returns:
             List of pod information
         """
@@ -336,10 +353,10 @@ class K8sClient:
                 "app=democratic-csi",
                 "app.kubernetes.io/name=democratic-csi",
             ]
-            
+
             all_pods = []
             seen = set()
-            
+
             for selector in label_selectors:
                 try:
                     pods = self.core_v1.list_pod_for_all_namespaces(label_selector=selector)
@@ -350,7 +367,7 @@ class K8sClient:
                             all_pods.append(pod)
                 except ApiException:
                     continue
-            
+
             result = []
             for pod in all_pods:
                 pod_info = {
@@ -358,8 +375,7 @@ class K8sClient:
                     "namespace": pod.metadata.namespace,
                     "status": pod.status.phase,
                     "ready": all(
-                        container.ready 
-                        for container in pod.status.container_statuses or []
+                        container.ready for container in pod.status.container_statuses or []
                     ),
                     "containers": [
                         {
@@ -371,22 +387,22 @@ class K8sClient:
                     ],
                 }
                 result.append(pod_info)
-            
+
             logger.info(f"Found {len(result)} CSI driver pods")
             return result
-            
+
         except ApiException as e:
             logger.error(f"Failed to list CSI driver pods: {e}")
             raise
 
     def check_csi_driver_health(self) -> Dict[str, Any]:
         """Check the health of the CSI driver.
-        
+
         Returns:
             Health status information
         """
         pods = self.get_csi_driver_pods()
-        
+
         if not pods:
             return {
                 "healthy": False,
@@ -395,12 +411,12 @@ class K8sClient:
                 "running_pods": 0,
                 "ready_pods": 0,
             }
-        
+
         running_pods = sum(1 for pod in pods if pod["status"] == "Running")
         ready_pods = sum(1 for pod in pods if pod["ready"])
-        
+
         healthy = running_pods > 0 and running_pods == ready_pods
-        
+
         return {
             "healthy": healthy,
             "reason": "All pods running and ready" if healthy else "Some pods not ready",
@@ -412,13 +428,13 @@ class K8sClient:
 
     def find_orphaned_pvs(self) -> List[OrphanedResource]:
         """Find PersistentVolumes that are not bound to any PVC.
-        
+
         Returns:
             List of orphaned PV resources
         """
         orphans = []
         pvs = self.get_persistent_volumes()
-        
+
         for pv in pvs:
             if pv.phase == "Available" or (pv.phase == "Released" and not pv.claim_ref):
                 orphan = OrphanedResource(
@@ -437,23 +453,25 @@ class K8sClient:
                     },
                 )
                 orphans.append(orphan)
-        
+
         logger.info(f"Found {len(orphans)} orphaned PersistentVolumes")
         return orphans
 
     def find_orphaned_pvcs(self, pending_threshold_minutes: int = 60) -> List[OrphanedResource]:
         """Find PersistentVolumeClaims that are stuck in pending state.
-        
+
         Args:
             pending_threshold_minutes: Minutes before considering a pending PVC as orphaned
-            
+
         Returns:
             List of orphaned PVC resources
         """
         orphans = []
         pvcs = self.get_persistent_volume_claims()
-        threshold = datetime.now(tz=pvcs[0].creation_time.tzinfo if pvcs and pvcs[0].creation_time else None) - timedelta(minutes=pending_threshold_minutes)
-        
+        threshold = datetime.now(
+            tz=pvcs[0].creation_time.tzinfo if pvcs and pvcs[0].creation_time else None
+        ) - timedelta(minutes=pending_threshold_minutes)
+
         for pvc in pvcs:
             if pvc.phase == "Pending" and pvc.creation_time and pvc.creation_time < threshold:
                 orphan = OrphanedResource(
@@ -471,28 +489,30 @@ class K8sClient:
                     },
                 )
                 orphans.append(orphan)
-        
+
         logger.info(f"Found {len(orphans)} orphaned PersistentVolumeClaims")
         return orphans
 
-    def watch_persistent_volumes(self, timeout_seconds: Optional[int] = None) -> Generator[Dict[str, Any], None, None]:
+    def watch_persistent_volumes(
+        self, timeout_seconds: Optional[int] = None
+    ) -> Generator[Dict[str, Any], None, None]:
         """Watch for PersistentVolume events.
-        
+
         Args:
             timeout_seconds: Timeout for the watch operation
-            
+
         Yields:
             Dictionary containing event information
         """
         w = watch.Watch()
-        
+
         try:
             for event in w.stream(
                 self.core_v1.list_persistent_volume,
                 timeout_seconds=timeout_seconds,
             ):
                 pv = event["object"]
-                
+
                 # Filter by CSI driver
                 if pv.spec.csi and pv.spec.csi.driver == self.config.csi_driver:
                     yield {
@@ -506,22 +526,20 @@ class K8sClient:
             w.stop()
 
     def watch_persistent_volume_claims(
-        self, 
-        namespace: Optional[str] = None,
-        timeout_seconds: Optional[int] = None
+        self, namespace: Optional[str] = None, timeout_seconds: Optional[int] = None
     ) -> Generator[Dict[str, Any], None, None]:
         """Watch for PersistentVolumeClaim events.
-        
+
         Args:
             namespace: Namespace to watch (None for all)
             timeout_seconds: Timeout for the watch operation
-            
+
         Yields:
             Dictionary containing event information
         """
         w = watch.Watch()
         namespace = namespace or self.config.namespace
-        
+
         try:
             if namespace:
                 stream = w.stream(
@@ -534,14 +552,17 @@ class K8sClient:
                     self.core_v1.list_persistent_volume_claim_for_all_namespaces,
                     timeout_seconds=timeout_seconds,
                 )
-            
+
             for event in stream:
                 pvc = event["object"]
-                
+
                 # Filter by storage class
-                if self.config.storage_class and pvc.spec.storage_class_name != self.config.storage_class:
+                if (
+                    self.config.storage_class
+                    and pvc.spec.storage_class_name != self.config.storage_class
+                ):
                     continue
-                
+
                 yield {
                     "type": event["type"],
                     "name": pvc.metadata.name,
