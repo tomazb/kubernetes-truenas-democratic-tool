@@ -207,7 +207,7 @@ Suggested worktree layout:
   - [x] No naive/aware datetime comparison failures.
   - [x] Monitor initialization and checks use valid client methods.
   - [x] Unit tests cover contract and timezone edge cases.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/52
 
 ### PR 3: Python Import and Packaging Hygiene
 
