@@ -34,6 +34,8 @@ type TrueNASConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 	Timeout  string `yaml:"timeout"`
+	Insecure bool   `yaml:"insecure"`
+	CAFile   string `yaml:"ca_file"`
 }
 
 // MonitorConfig holds monitoring settings
@@ -184,6 +186,12 @@ func (c *Config) validate() error {
 	// Validate TrueNAS timeout
 	if _, err := time.ParseDuration(c.TrueNAS.Timeout); err != nil {
 		return fmt.Errorf("invalid truenas.timeout format: %w", err)
+	}
+
+	if c.TrueNAS.CAFile != "" {
+		if _, err := os.Stat(c.TrueNAS.CAFile); err != nil {
+			return fmt.Errorf("truenas.ca_file %q: %w", c.TrueNAS.CAFile, err)
+		}
 	}
 
 	// Monitor validation

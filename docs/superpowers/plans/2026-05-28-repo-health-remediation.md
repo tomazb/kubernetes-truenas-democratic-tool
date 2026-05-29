@@ -159,7 +159,7 @@ Suggested worktree layout:
 
 ### PR 1: Security Baseline Hardening
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** High
 - **Focus:** Secure TLS defaults for TrueNAS communication.
 - **Branch/worktree:**
@@ -171,15 +171,15 @@ Suggested worktree layout:
   - `go/pkg/config/config.go` (if config wiring is needed)
   - `go/pkg/truenas/*_test.go`
 - **Implementation steps:**
-  - [ ] Make TLS verification secure-by-default.
-  - [ ] Add explicit opt-in insecure mode for development use only.
-  - [ ] Add custom CA bundle support (or clear error if unavailable).
-  - [ ] Add tests for secure default and explicit insecure behavior.
-  - [ ] Update docs/config example for new TLS options.
+  - [x] Make TLS verification secure-by-default.
+  - [x] Add explicit opt-in insecure mode for development use only.
+  - [x] Add custom CA bundle support (or clear error if unavailable).
+  - [x] Add tests for secure default and explicit insecure behavior.
+  - [x] Update docs/config example for new TLS options.
 - **Acceptance criteria:**
-  - [ ] No unconditional `InsecureSkipVerify: true`.
-  - [ ] Default runtime verifies certificates.
-  - [ ] Tests cover secure and insecure modes.
+  - [x] No unconditional `InsecureSkipVerify: true`.
+  - [x] Default runtime verifies certificates.
+  - [x] Tests cover secure and insecure modes.
 - **PR URL:** TBD
 
 ### PR 2: Python Correctness and Contract Alignment

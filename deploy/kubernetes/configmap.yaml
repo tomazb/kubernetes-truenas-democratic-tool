@@ -17,6 +17,8 @@ data:
       username: ${TRUENAS_USERNAME}
       password: ${TRUENAS_PASSWORD}
       timeout: 30s
+      # insecure: true   # dev/lab only — disables TLS certificate verification
+      # ca_file: /etc/truenas-monitor/truenas-ca.pem
 
     monitor:
       scan_interval: 5m

@@ -468,6 +468,80 @@ truenas:
 	assert.Equal(t, "testpass", cfg.TrueNAS.Password)
 }
 
+func TestLoadTrueNASTLSOptions(t *testing.T) {
+	caPath := writeTestCAFile(t)
+
+	configYAML := `
+truenas:
+  url: https://truenas.example.com
+  username: admin
+  password: secret123
+  insecure: true
+  ca_file: ` + caPath + `
+`
+
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configYAML), 0644)
+	require.NoError(t, err)
+
+	cfg, err := Load(configFile)
+	require.NoError(t, err)
+	assert.True(t, cfg.TrueNAS.Insecure)
+	assert.Equal(t, caPath, cfg.TrueNAS.CAFile)
+}
+
+func TestValidate_missingCAFile(t *testing.T) {
+	cfg := &Config{
+		TrueNAS: TrueNASConfig{
+			URL:      "https://truenas.example.com",
+			Username: "admin",
+			Password: "secret123",
+			Timeout:  "30s",
+			CAFile:   "/no/such/ca.pem",
+		},
+		Monitor: MonitorConfig{
+			ScanInterval:    5 * time.Minute,
+			OrphanThreshold: 24 * time.Hour,
+		},
+		Metrics: MetricsConfig{
+			Port: 8080,
+			Path: "/metrics",
+		},
+		Logging: LoggingConfig{
+			Level:    "info",
+			Encoding: "json",
+		},
+		Security: SecurityConfig{
+			TLSMinVersion:  "1.3",
+			RateLimitRPS:   100,
+			AllowedOrigins: []string{"*"},
+			SessionTimeout: 24 * time.Hour,
+		},
+	}
+
+	err := cfg.validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "truenas.ca_file")
+}
+
+func writeTestCAFile(t *testing.T) string {
+	t.Helper()
+
+	caPEM := []byte(`-----BEGIN CERTIFICATE-----
+MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
+ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6
+b24gUm9vdCBDQSAxMB4XDTIzMDEwMTAwMDAwMFoXDTMyMDEwMTAwMDAwMFowOTEL
+MAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv
+b3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALtDGMZa+Jjl
+-----END CERTIFICATE-----`)
+
+	dir := t.TempDir()
+	caPath := filepath.Join(dir, "ca.pem")
+	require.NoError(t, os.WriteFile(caPath, caPEM, 0644))
+	return caPath
+}
+
 func TestInvalidYAML(t *testing.T) {
 	invalidYAML := `
 truenas:

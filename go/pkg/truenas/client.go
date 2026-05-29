@@ -2,7 +2,6 @@ package truenas
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"time"
@@ -34,6 +33,8 @@ type Config struct {
 	Username string
 	Password string
 	Timeout  time.Duration
+	Insecure bool
+	CAFile   string
 }
 
 // Volume represents a TrueNAS volume
@@ -105,6 +106,14 @@ func NewClient(config Config) (Client, error) {
 		timeout = 30 * time.Second
 	}
 
+	tlsCfg, err := buildTLSConfig(TLSOptions{
+		InsecureSkipVerify: config.Insecure,
+		CAFile:             config.CAFile,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure TLS: %w", err)
+	}
+
 	httpClient := resty.New().
 		SetBaseURL(config.URL).
 		SetBasicAuth(config.Username, config.Password).
@@ -112,9 +121,7 @@ func NewClient(config Config) (Client, error) {
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json")
 
-	// Disable SSL verification for self-signed certificates
-	// In production, you should properly configure SSL certificates
-	httpClient.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
+	httpClient.SetTLSClientConfig(tlsCfg)
 
 	// Initialize logger
 	logger, err := logging.NewLogger(logging.Config{
