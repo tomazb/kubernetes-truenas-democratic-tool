@@ -84,3 +84,29 @@ Copy this template for each new item:
   - [x] `AGENTS.md` points to this backlog.
   - [x] Active plan points to this backlog.
   - [x] Out-of-scope PR comments are recorded here with target phase/PR.
+
+### BL-20260529-dependency-pr-remediation
+- Status: Done
+- Priority: P1
+- Milestone: M3
+- Source: Maintenance request (@tomazb): review, validate and address all dependency PRs
+- Opened by: agent
+- Date: 2026-05-29
+- In scope of current PR: No (tracking record)
+- Rationale: 15 open Dependabot PRs were all blocked by a red required `CI Pipeline` check caused by the Security Scan SARIF upload lacking `security-events: write` permission (not test failures). Several Go PRs were stale/superseded. Consolidated by ecosystem and addressed.
+- Proposed target: Completed
+- Related spec(s):
+  - `docs/superpowers/specs/2026-05-29-pr-45-ci-security-scan-permissions-design.md`
+  - `docs/superpowers/specs/2026-05-29-pr-46-go-module-deps-design.md`
+  - `docs/superpowers/specs/2026-05-29-pr-47-github-actions-deps-design.md`
+  - `docs/superpowers/specs/2026-05-29-pr-48-docker-image-deps-design.md`
+  - `docs/superpowers/specs/2026-05-29-pr-50-quic-go-dep-design.md`
+- Related PR(s)/issue(s):
+  - Merged: #45 (CI fix), #46 (Go modules + Go 1.24 toolchain), #47 (GitHub Actions), #48 (Docker images), #50 (quic-go)
+  - Superseded/closed: #42, #38, #37, #36, #21, #14 (folded into #46); #39, #34, #41, #15 (folded into #47); #31, #40 (folded into #48); #49 (folded into #50)
+  - Obsolete/closed (no longer applicable): #12 controller-runtime, #13 viper (removed from go.mod); #9 codecov (already at v5)
+- Description: Fixed the CI permissions blocker, then consolidated and merged all still-relevant dependency bumps; bumped CI/CodeQL/release Go to 1.24 to match go.mod and raised golangci-lint timeout for the larger dependency graph.
+- Acceptance criteria:
+  - [x] Required `CI Pipeline` check green on `main` and on each dependency PR.
+  - [x] Every open Dependabot dependency PR merged or closed with rationale.
+  - [x] Each merged change has a design spec under `docs/superpowers/specs/`.
