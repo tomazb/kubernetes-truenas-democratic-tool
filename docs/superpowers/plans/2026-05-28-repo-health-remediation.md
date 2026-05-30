@@ -95,11 +95,11 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Phase 1 - Security and correctness baseline (implementation starts at PR 1)
+- **Current phase:** Phase 2 - Contract integrity (PR 5 next)
 - **Primary owner:** TBD
-- **Last updated:** 2026-05-29
-- **Last merged:** PR 3 Python import hygiene [#53](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/53) (2026-05-29)
-- **Next up:** PR 4 - API honesty and endpoint maturity cleanup
+- **Last updated:** 2026-05-30
+- **Last merged:** PR 4 API honesty [#54](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/54) (2026-05-30)
+- **Next up:** PR 5 - Orphan detection and validation debt
 
 ## Milestones
 
@@ -238,12 +238,14 @@ Suggested worktree layout:
 
 ### PR 4: API Honesty and Endpoint Maturity Cleanup
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** High
 - **Focus:** Replace misleading placeholder success payloads.
 - **Branch/worktree:**
-  - Branch: `feature/pr-4-api-honesty`
-  - Worktree: `.worktrees/pr-4-api-honesty`
+  - Branch: `feature/pr-4-api-honesty` (merged; removed)
+  - Worktree: `.worktrees/pr-4-api-honesty` (removed)
+- **Merged:** 2026-05-30
+- **Merge commit:** `1d619a7`
 - **Spec/design:** `docs/superpowers/specs/2026-05-28-pr-4-api-honesty-design.md`
 - **Files (expected):**
   - `go/pkg/api/server.go`
