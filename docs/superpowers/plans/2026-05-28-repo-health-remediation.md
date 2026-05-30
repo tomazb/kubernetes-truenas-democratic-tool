@@ -263,7 +263,7 @@ Suggested worktree layout:
 
 ### PR 5: Orphan Detection and Validation Debt
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** High
 - **Focus:** Replace hardcoded detector logic and optimistic validation stubs.
 - **Branch/worktree:**
@@ -276,14 +276,14 @@ Suggested worktree layout:
   - `go/pkg/orphan/*_test.go`
   - `go/pkg/k8s/*_test.go`
 - **Implementation steps:**
-  - [ ] Implement real snapshot matching in detector.
-  - [ ] Replace hardcoded `return true` paths with deterministic matching.
-  - [ ] Replace always-pass RBAC validation placeholders with real checks or explicit not-implemented errors.
-  - [ ] Add table-driven tests for volume handles and snapshot correlation.
+  - [x] Implement real snapshot matching in detector.
+  - [x] Replace hardcoded `return true` paths with deterministic matching.
+  - [x] Replace always-pass RBAC validation placeholders with real checks or explicit not-implemented errors.
+  - [x] Add table-driven tests for volume handles and snapshot correlation.
 - **Acceptance criteria:**
-  - [ ] Snapshot orphan detection produces real signal.
-  - [ ] Validation behavior is not silently optimistic.
-  - [ ] Tests cover core matching edge cases.
+  - [x] Snapshot orphan detection produces real signal.
+  - [x] Validation behavior is not silently optimistic.
+  - [x] Tests cover core matching edge cases.
 - **PR URL:** TBD
 
 ### PR 6: Reliability and Performance Guardrails

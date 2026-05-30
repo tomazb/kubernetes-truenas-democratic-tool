@@ -6,11 +6,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
+
+	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
 
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 )
@@ -190,4 +195,81 @@ func TestClient_ListStorageClasses(t *testing.T) {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestClient_ValidateRBACPermissions_Allowed(t *testing.T) {
+	ctx := context.Background()
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.PrependReactor(
+		"create",
+		"selfsubjectaccessreviews",
+		func(action k8stesting.Action) (bool, runtime.Object, error) {
+			review := action.(k8stesting.CreateAction).GetObject().(*authorizationv1.SelfSubjectAccessReview)
+			review.Status = authorizationv1.SubjectAccessReviewStatus{Allowed: true}
+			return true, review, nil
+		},
+	)
+
+	c := &client{
+		clientset:      fakeClient,
+		snapshotClient: snapshotfake.NewSimpleClientset(),
+		config:         Config{Namespace: "monitoring"},
+		logger:         testLogger(t),
+	}
+
+	result, err := c.ValidateRBACPermissions(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.HasRequiredPermissions {
+		t.Fatalf("expected HasRequiredPermissions true, missing=%v", result.MissingPermissions)
+	}
+	if !result.PermissionChecks["persistentvolumes/list"] {
+		t.Fatal("expected persistentvolumes/list allowed")
+	}
+	if result.Namespace != "monitoring" {
+		t.Fatalf("namespace = %q, want monitoring", result.Namespace)
+	}
+}
+
+func TestClient_ValidateRBACPermissions_Denied(t *testing.T) {
+	ctx := context.Background()
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.PrependReactor(
+		"create",
+		"selfsubjectaccessreviews",
+		func(action k8stesting.Action) (bool, runtime.Object, error) {
+			review := action.(k8stesting.CreateAction).GetObject().(*authorizationv1.SelfSubjectAccessReview)
+			allowed := review.Spec.ResourceAttributes.Resource != "persistentvolumes"
+			review.Status = authorizationv1.SubjectAccessReviewStatus{Allowed: allowed}
+			return true, review, nil
+		},
+	)
+
+	c := &client{
+		clientset:      fakeClient,
+		snapshotClient: nil,
+		config:         Config{Namespace: "default"},
+		logger:         testLogger(t),
+	}
+
+	result, err := c.ValidateRBACPermissions(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.HasRequiredPermissions {
+		t.Fatal("expected HasRequiredPermissions false when PV list denied")
+	}
+	if len(result.MissingPermissions) == 0 {
+		t.Fatal("expected missing permissions listed")
+	}
+	foundSkip := false
+	for _, m := range result.MissingPermissions {
+		if m == "skipped: volumesnapshots (snapshot client unavailable)" {
+			foundSkip = true
+		}
+	}
+	if !foundSkip {
+		t.Fatalf("expected snapshot skip note, got %v", result.MissingPermissions)
+	}
 }

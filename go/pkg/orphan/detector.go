@@ -3,9 +3,9 @@ package orphan
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"go.uber.org/zap"
 
@@ -299,18 +299,23 @@ func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string) ([]
 
 // detectOrphanedSnapshots identifies snapshots without corresponding resources
 func (d *Detector) detectOrphanedSnapshots(ctx context.Context, namespace string) ([]OrphanedResource, int, error) {
-	// Get all volume snapshots from Kubernetes
 	k8sSnapshots, err := d.k8sClient.ListVolumeSnapshots(ctx, namespace)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list Kubernetes snapshots: %w", err)
 	}
 
-	// Get all snapshots from TrueNAS
 	truenasSnapshots, err := d.truenasClient.ListSnapshots(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list TrueNAS snapshots: %w", err)
 	}
 
+	return d.detectOrphanedSnapshotsFromLists(k8sSnapshots, truenasSnapshots)
+}
+
+func (d *Detector) detectOrphanedSnapshotsFromLists(
+	k8sSnapshots []snapshotv1.VolumeSnapshot,
+	truenasSnapshots []truenas.Snapshot,
+) ([]OrphanedResource, int, error) {
 	var orphaned []OrphanedResource
 	threshold := time.Now().Add(-d.config.AgeThreshold)
 
@@ -353,14 +358,15 @@ func (d *Detector) detectOrphanedSnapshots(ctx context.Context, namespace string
 		}
 	}
 
-	d.logger.Info("Snapshot orphan detection completed",
-		zap.String("namespace", namespace),
-		zap.Int("k8s_snapshots", len(k8sSnapshots)),
-		zap.Int("truenas_snapshots", len(truenasSnapshots)),
-		zap.Int("orphaned_snapshots", len(orphaned)),
-		zap.String("age_threshold", d.config.AgeThreshold.String()),
-		zap.String("retention_threshold", d.config.SnapshotRetention.String()),
-	)
+	if d.logger != nil {
+		d.logger.Info("Snapshot orphan detection completed",
+			zap.Int("k8s_snapshots", len(k8sSnapshots)),
+			zap.Int("truenas_snapshots", len(truenasSnapshots)),
+			zap.Int("orphaned_snapshots", len(orphaned)),
+			zap.String("age_threshold", d.config.AgeThreshold.String()),
+			zap.String("retention_threshold", d.config.SnapshotRetention.String()),
+		)
+	}
 
 	return orphaned, len(k8sSnapshots), nil
 }
@@ -376,16 +382,11 @@ func (d *Detector) hasCorrespondingTrueNASVolume(pv corev1.PersistentVolume, tru
 		return false
 	}
 
-	// Extract dataset name from volume handle
-	// Democratic-CSI typically uses formats like:
-	// - pool/dataset/volume-name
-	// - pool/dataset@snapshot-name
-	// - iqn.2005-10.org.freenas.ctl:volume-name
-	datasetName := d.extractDatasetFromVolumeHandle(volumeHandle)
+	datasetName := extractDatasetFromVolumeHandle(volumeHandle)
 
 	for _, volume := range truenasVolumes {
 		// Check various matching strategies
-		if d.volumeMatches(volume, volumeHandle, datasetName) {
+		if volumeMatches(volume, volumeHandle, datasetName) {
 			d.logger.Debug("Found matching TrueNAS volume for PV",
 				zap.String("pv_name", pv.Name),
 				zap.String("volume_handle", volumeHandle),
@@ -399,65 +400,16 @@ func (d *Detector) hasCorrespondingTrueNASVolume(pv corev1.PersistentVolume, tru
 	return false
 }
 
-// hasCorrespondingTrueNASSnapshot checks if a K8s snapshot has a corresponding TrueNAS snapshot
-func (d *Detector) hasCorrespondingTrueNASSnapshot(k8sSnapshot interface{}, truenasSnapshots []truenas.Snapshot) bool {
-	// This would need to be implemented based on the actual VolumeSnapshot type
-	// For now, return true to avoid false positives
-	return true
+func (d *Detector) hasCorrespondingTrueNASSnapshot(
+	k8sSnapshot snapshotv1.VolumeSnapshot,
+	truenasSnapshots []truenas.Snapshot,
+) bool {
+	return snapshotCorrelatesWithTrueNAS(k8sSnapshot, truenasSnapshots)
 }
 
-// hasCorrespondingK8sSnapshot checks if a TrueNAS snapshot has a corresponding K8s snapshot
-func (d *Detector) hasCorrespondingK8sSnapshot(truenasSnapshot truenas.Snapshot, k8sSnapshots interface{}) bool {
-	// This would need to be implemented based on the actual VolumeSnapshot type
-	// For now, return true to avoid false positives
-	return true
-}
-
-// extractDatasetFromVolumeHandle extracts the dataset name from a CSI volume handle
-func (d *Detector) extractDatasetFromVolumeHandle(volumeHandle string) string {
-	// Handle different volume handle formats
-	if strings.Contains(volumeHandle, "iqn.") {
-		// iSCSI format: iqn.2005-10.org.freenas.ctl:volume-name
-		parts := strings.Split(volumeHandle, ":")
-		if len(parts) > 1 {
-			return parts[len(parts)-1]
-		}
-	} else if strings.Contains(volumeHandle, "/") {
-		// Dataset format: pool/dataset/volume-name
-		parts := strings.Split(volumeHandle, "/")
-		if len(parts) > 0 {
-			return parts[len(parts)-1]
-		}
-	}
-
-	return volumeHandle
-}
-
-// volumeMatches checks if a TrueNAS volume matches the given identifiers
-func (d *Detector) volumeMatches(volume truenas.Volume, volumeHandle, datasetName string) bool {
-	// Direct name match
-	if volume.Name == datasetName || volume.Name == volumeHandle {
-		return true
-	}
-
-	// Check if volume ID contains the dataset name
-	if strings.Contains(volume.ID, datasetName) {
-		return true
-	}
-
-	// Check if volume path contains the dataset name
-	if strings.Contains(volume.Path, datasetName) {
-		return true
-	}
-
-	// Check properties for additional matching
-	if volume.Properties != nil {
-		for _, value := range volume.Properties {
-			if strings.Contains(value, datasetName) {
-				return true
-			}
-		}
-	}
-
-	return false
+func (d *Detector) hasCorrespondingK8sSnapshot(
+	truenasSnapshot truenas.Snapshot,
+	k8sSnapshots []snapshotv1.VolumeSnapshot,
+) bool {
+	return truenasSnapshotCorrelatesWithK8s(truenasSnapshot, k8sSnapshots)
 }

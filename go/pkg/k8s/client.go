@@ -484,18 +484,6 @@ func (c *client) GetCSIDriverPods(ctx context.Context, namespace string) ([]core
 	return csiPods, nil
 }
 
-// Stub implementations for missing methods
-func (c *client) ValidateRBACPermissions(ctx context.Context) (*RBACValidationResult, error) {
-	// TODO: Implement RBAC validation
-	return &RBACValidationResult{
-		HasRequiredPermissions: true,
-		MissingPermissions:     []string{},
-		PermissionChecks:       map[string]bool{},
-		ServiceAccount:         "default",
-		Namespace:              "default",
-	}, nil
-}
-
 func (c *client) GetClusterInfo(ctx context.Context) (*ClusterInfo, error) {
 	// TODO: Implement cluster info gathering
 	return &ClusterInfo{
