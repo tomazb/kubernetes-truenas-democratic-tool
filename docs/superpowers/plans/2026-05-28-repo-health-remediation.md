@@ -95,11 +95,11 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Phase 3 - Operational readiness (PR 8 in progress)
+- **Current phase:** Baseline remediation complete (M1–M3); Stage 2+ next
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-30
-- **Last merged:** PR 7 test/CI alignment [#57](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/57) (2026-05-30)
-- **Next up:** PR 8 - Documentation accuracy refresh
+- **Last merged:** PR 8 documentation accuracy [#58](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/58) (2026-05-30)
+- **Next up:** Stage 2 — Scalability foundation (see Phase 2+ roadmap)
 
 ## Milestones
 
@@ -342,12 +342,14 @@ Suggested worktree layout:
 
 ### PR 8: Documentation Accuracy Refresh
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** Medium
 - **Focus:** Bring docs in sync with implemented reality.
 - **Branch/worktree:**
-  - Branch: `docs/pr-8-docs-accuracy`
-  - Worktree: `.worktrees/pr-8-docs-accuracy`
+  - Branch: `docs/pr-8-docs-accuracy` (merged; removed)
+  - Worktree: `.worktrees/pr-8-docs-accuracy` (removed)
+- **Merged:** 2026-05-30
+- **Merge commit:** `485d585`
 - **Spec/design:** `docs/superpowers/specs/2026-05-28-pr-8-docs-accuracy-design.md`
 - **Files (expected):**
   - `README.md`
@@ -401,5 +403,5 @@ Suggested worktree layout:
 - [ ] Complete PRs 4 and 5 (API honesty + detector fidelity).
 - [x] Complete PR 6 (reliability/performance guardrails).
 - [x] Complete PR 7 (CI trust).
-- [ ] Complete PR 8 (docs accuracy).
+- [x] Complete PR 8 (docs accuracy).
 - [ ] Start Stage 2+ initiatives after baseline PRs are merged.
