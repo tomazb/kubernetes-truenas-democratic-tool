@@ -400,7 +400,7 @@ Suggested worktree layout:
   - [x] Python monitor uses config thresholds when not explicitly overridden.
   - [x] Go exports scan histogram + object-count metrics; Python logs scan duration and per-list timing.
   - [x] Tests and lint pass for touched stacks.
-- **PR URL:** (pending)
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/59
 
 #### PR 10: TTL Inventory Cache
 
