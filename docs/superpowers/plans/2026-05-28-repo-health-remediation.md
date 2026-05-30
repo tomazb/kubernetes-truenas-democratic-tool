@@ -284,7 +284,7 @@ Suggested worktree layout:
   - [x] Snapshot orphan detection produces real signal.
   - [x] Validation behavior is not silently optimistic.
   - [x] Tests cover core matching edge cases.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/55
 
 ### PR 6: Reliability and Performance Guardrails
 
