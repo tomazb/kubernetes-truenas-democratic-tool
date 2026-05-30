@@ -95,11 +95,11 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Phase 3 - Operational readiness (PR 7 in progress)
+- **Current phase:** Phase 3 - Operational readiness (PR 8 next)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-30
-- **Last merged:** PR 6 reliability guardrails [#56](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/56) (2026-05-30)
-- **Next up:** PR 7 - Test and CI/release trustworthiness
+- **Last merged:** PR 7 test/CI alignment [#57](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/57) (2026-05-30)
+- **Next up:** PR 8 - Documentation accuracy refresh
 
 ## Milestones
 
@@ -314,12 +314,12 @@ Suggested worktree layout:
 
 ### PR 7: Test and CI/Release Trustworthiness
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** High
 - **Focus:** Align tests/workflows with actual repo structure.
 - **Branch/worktree:**
-  - Branch: `bugfix/pr-7-test-ci-alignment`
-  - Worktree: `.worktrees/pr-7-test-ci-alignment`
+  - Branch: `bugfix/pr-7-test-ci-alignment` (merged; removed)
+  - Worktree: `.worktrees/pr-7-test-ci-alignment` (removed)
 - **Spec/design:** `docs/superpowers/specs/2026-05-28-pr-7-test-ci-alignment-design.md`
 - **Files (expected):**
   - `scripts/ci-precheck.sh`
@@ -335,9 +335,9 @@ Suggested worktree layout:
   - [x] Fix release workflow output wiring issues.
   - [x] Add precheck validating referenced paths/targets exist.
 - **Acceptance criteria:**
-  - [ ] CI is green against current code layout.
-  - [ ] Release workflow references valid outputs/artifacts.
-  - [ ] Tests fail on regressions, not stale wiring.
+  - [x] CI is green against current code layout.
+  - [x] Release workflow references valid outputs/artifacts.
+  - [x] Tests fail on regressions, not stale wiring.
 - **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/57
 
 ### PR 8: Documentation Accuracy Refresh
@@ -397,5 +397,6 @@ Suggested worktree layout:
 - [ ] Complete PRs 2 and 3 (Python correctness/hygiene).
 - [ ] Complete PRs 4 and 5 (API honesty + detector fidelity).
 - [x] Complete PR 6 (reliability/performance guardrails).
-- [ ] Complete PRs 7 and 8 (CI trust + docs accuracy).
+- [x] Complete PR 7 (CI trust).
+- [ ] Complete PR 8 (docs accuracy).
 - [ ] Start Stage 2+ initiatives after baseline PRs are merged.
