@@ -238,7 +238,7 @@ Suggested worktree layout:
 
 ### PR 4: API Honesty and Endpoint Maturity Cleanup
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** High
 - **Focus:** Replace misleading placeholder success payloads.
 - **Branch/worktree:**
@@ -250,14 +250,14 @@ Suggested worktree layout:
   - `go/pkg/api/*_test.go`
   - API docs section in `README.md` or `docs/`
 - **Implementation steps:**
-  - [ ] Identify placeholder endpoints returning pseudo-success.
-  - [ ] Standardize unfinished endpoints to explicit `501` responses.
-  - [ ] Optionally implement one complete vertical slice endpoint (`/api/v1/orphans`).
-  - [ ] Add handler contract tests for implemented and unimplemented endpoints.
+  - [x] Identify placeholder endpoints returning pseudo-success.
+  - [x] Standardize unfinished endpoints to explicit `501` responses.
+  - [x] Optionally implement one complete vertical slice endpoint (`/api/v1/orphans`).
+  - [x] Add handler contract tests for implemented and unimplemented endpoints.
 - **Acceptance criteria:**
-  - [ ] No placeholder endpoint returns misleading success data.
-  - [ ] Endpoint maturity is explicit and test-verified.
-- **PR URL:** TBD
+  - [x] No placeholder endpoint returns misleading success data.
+  - [x] Endpoint maturity is explicit and test-verified.
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/54
 
 ### PR 5: Orphan Detection and Validation Debt
 
