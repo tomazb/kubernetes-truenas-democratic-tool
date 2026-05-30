@@ -95,11 +95,11 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Phase 2 - Contract integrity (PR 5 next)
+- **Current phase:** Phase 3 - Operational readiness (PR 6 in progress)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-30
-- **Last merged:** PR 4 API honesty [#54](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/54) (2026-05-30)
-- **Next up:** PR 5 - Orphan detection and validation debt
+- **Last merged:** PR 5 detector validation [#55](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/55) (2026-05-30)
+- **Next up:** PR 6 - Reliability and performance guardrails
 
 ## Milestones
 
@@ -263,7 +263,7 @@ Suggested worktree layout:
 
 ### PR 5: Orphan Detection and Validation Debt
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** High
 - **Focus:** Replace hardcoded detector logic and optimistic validation stubs.
 - **Branch/worktree:**
@@ -288,7 +288,7 @@ Suggested worktree layout:
 
 ### PR 6: Reliability and Performance Guardrails
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** Medium
 - **Focus:** Improve resilience and fairness under load/failures.
 - **Branch/worktree:**
@@ -301,15 +301,15 @@ Suggested worktree layout:
   - `go/pkg/k8s/client.go`
   - Corresponding tests
 - **Implementation steps:**
-  - [ ] Replace global rate limiter with per-client limiter strategy.
-  - [ ] Add limiter eviction/cleanup to prevent unbounded growth.
-  - [ ] Guard nil metrics exporter paths to prevent panics.
-  - [ ] Restrict retries to transient error classes.
-  - [ ] Add tests for limiter fairness and retry predicates.
+  - [x] Replace global rate limiter with per-client limiter strategy.
+  - [x] Add limiter eviction/cleanup to prevent unbounded growth.
+  - [x] Guard nil metrics exporter paths to prevent panics.
+  - [x] Restrict retries to transient error classes.
+  - [x] Add tests for limiter fairness and retry predicates.
 - **Acceptance criteria:**
-  - [ ] No nil exporter panic path.
-  - [ ] No global limiter starvation by a single noisy client.
-  - [ ] Retry behavior avoids repeated non-transient failures.
+  - [x] No nil exporter panic path.
+  - [x] No global limiter starvation by a single noisy client.
+  - [x] Retry behavior avoids repeated non-transient failures.
 - **PR URL:** TBD
 
 ### PR 7: Test and CI/Release Trustworthiness

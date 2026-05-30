@@ -172,10 +172,7 @@ func (c *client) ListPersistentVolumes(ctx context.Context) ([]corev1.Persistent
 	
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			// Retry on temporary network errors
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			var err error
 			pvList, err = c.clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
@@ -207,9 +204,7 @@ func (c *client) ListPersistentVolumeClaims(ctx context.Context, namespace strin
 	
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			var err error
 			pvcList, err = c.clientset.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{})
@@ -239,9 +234,7 @@ func (c *client) ListVolumeSnapshots(ctx context.Context, namespace string) ([]s
 	
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			var err error
 			snapshotList, err = c.snapshotClient.SnapshotV1().VolumeSnapshots(namespace).List(ctx, metav1.ListOptions{})
@@ -267,9 +260,7 @@ func (c *client) ListStorageClasses(ctx context.Context) ([]storagev1.StorageCla
 	
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			var err error
 			scList, err = c.clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
@@ -297,9 +288,7 @@ func (c *client) ListPods(ctx context.Context, namespace string) ([]corev1.Pod, 
 	
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			var err error
 			podList, err = c.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
@@ -325,9 +314,7 @@ func (c *client) GetNamespace(ctx context.Context, name string) (*corev1.Namespa
 	
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			var err error
 			namespace, err = c.clientset.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
@@ -351,9 +338,7 @@ func (c *client) GetNamespace(ctx context.Context, name string) (*corev1.Namespa
 func (c *client) TestConnection(ctx context.Context) error {
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			_, err := c.clientset.Discovery().ServerVersion()
 			return err
@@ -441,9 +426,7 @@ func (c *client) ListNamespaces(ctx context.Context) ([]corev1.Namespace, error)
 	
 	err := retry.OnError(
 		retry.DefaultRetry,
-		func(err error) bool {
-			return err != nil
-		},
+		isTransientK8sError,
 		func() error {
 			var err error
 			nsList, err = c.clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})

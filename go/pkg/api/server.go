@@ -12,7 +12,6 @@ import (
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/orphan"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -69,8 +68,8 @@ func NewServer(config Config) (*Server, error) {
 	// Add logging middleware
 	router.Use(loggingMiddleware(logger))
 
-	// Add rate limiting middleware
-	router.Use(rateLimitMiddleware())
+	// Add per-client rate limiting middleware
+	router.Use(perClientRateLimitMiddleware(nil))
 
 	orphanDetector, err := orphan.NewDetector(config.K8sClient, config.TruenasClient, orphan.Config{
 		AgeThreshold:      defaultOrphanAgeThreshold,
@@ -496,25 +495,3 @@ func requestIDMiddleware() gin.HandlerFunc {
 	}
 }
 
-// rateLimitMiddleware implements rate limiting
-func rateLimitMiddleware() gin.HandlerFunc {
-	// Create a rate limiter: 100 requests per minute
-	limiter := rate.NewLimiter(rate.Every(time.Minute/100), 100)
-
-	return func(c *gin.Context) {
-		if !limiter.Allow() {
-			retryAfter := time.Second
-			if reservation := limiter.Reserve(); reservation.OK() {
-				retryAfter = reservation.Delay()
-				reservation.Cancel()
-			}
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "rate limit exceeded",
-				"retry_after": retryAfter.String(),
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
-	}
-}
