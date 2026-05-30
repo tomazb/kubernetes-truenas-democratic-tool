@@ -1,0 +1,48 @@
+# Go monitor and API server configuration
+# Used by: go/cmd/monitor, go/cmd/api-server
+# Copy to config.yaml and set environment variables before starting.
+#
+# Python CLI/library uses a different schema — see config.yaml.example and
+# docs/config-compatibility.md.
+
+kubernetes:
+  # Path to kubeconfig (optional when in_cluster is true)
+  kubeconfig: ~/.kube/config
+  in_cluster: false
+  namespace: democratic-csi
+
+truenas:
+  url: https://truenas.example.com
+  username: ${TRUENAS_USERNAME}
+  password: ${TRUENAS_PASSWORD}
+  timeout: 30s
+  insecure: false
+  # ca_file: /etc/truenas-monitor/truenas-ca.pem
+
+monitor:
+  scan_interval: 5m
+  orphan_threshold: 24h
+  snapshot_retention: 720h
+
+metrics:
+  enabled: true
+  port: 8080
+  path: /metrics
+
+alerts:
+  slack:
+    webhook: ${SLACK_WEBHOOK}
+    channel: "#storage-alerts"
+
+logging:
+  level: info
+  development: false
+  encoding: json
+
+security:
+  tls_min_version: "1.3"
+  require_auth: true
+  allowed_origins:
+    - "*"
+  rate_limit_rps: 100
+  session_timeout: 24h

@@ -4,183 +4,198 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/tomazb/kubernetes-truenas-democratic-tool)](https://goreportcard.com/report/github.com/tomazb/kubernetes-truenas-democratic-tool)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-A comprehensive monitoring and management tool for OpenShift/Kubernetes clusters using TrueNAS Scale storage via democratic-csi.
+A monitoring and analysis tool for OpenShift/Kubernetes clusters using TrueNAS Scale storage via democratic-csi.
 
 ## Overview
 
-This tool analyzes and monitors the integration between OpenShift, TrueNAS Scale, and democratic-csi to identify configuration issues, orphaned resources, and ensure best practices.
+This tool correlates Kubernetes storage objects (PVs, PVCs, snapshots) with TrueNAS datasets and volumes to detect orphaned resources, configuration drift, and storage efficiency risks.
 
-### Key Features
+### Maturity snapshot
 
-- **Orphaned Resource Detection** - Identify PVs, volumes, and snapshots without corresponding resources
-- **Snapshot Management** - Track snapshot growth, retention, and storage consumption
-- **Configuration Validation** - Verify StorageClass, CSI driver, and RBAC configurations
-- **Storage Analytics** - Monitor thin provisioning efficiency and capacity trends
-- **Security-First Design** - Zero-trust architecture with comprehensive audit logging
-- **Idempotent Operations** - All operations are safe to retry
+| Area | Status | Notes |
+|------|--------|-------|
+| Go monitor service | **Implemented** | Periodic scans, Prometheus metrics, orphan detection |
+| Go API server | **Partial** | 7 routes implemented; 15 return HTTP 501 — see [API endpoint maturity](docs/api-endpoints.md) |
+| Go orphan detector | **Implemented** | Real K8s/TrueNAS correlation (PR 5) |
+| Python library | **Implemented** | Config, K8s/TrueNAS clients, monitor module |
+| Python CLI (`truenas-monitor`) | **Scaffold** | Commands exist; output is demo/TODO — use Go API for real orphan data |
+| Kubernetes manifests | **Implemented** | `deploy/kubernetes/` |
+| Helm chart | **Planned** | Tracked in [backlog](docs/superpowers/backlog.md) (BL-20260530-helm-chart-release) |
+
+### Key capabilities
+
+**Implemented today:**
+
+- Orphaned resource detection via Go API (`GET /api/v1/orphans`, `/api/v1/orphans/pvs`)
+- Kubernetes and TrueNAS connectivity validation
+- TLS secure-by-default for TrueNAS (with explicit dev-only insecure opt-in)
+- Per-client API rate limiting and transient-error retries (PR 6)
+
+**Planned (not yet shipped):**
+
+- Full Python CLI implementations (analyze, report, validate with live data)
+- Snapshot orphan API routes, analysis/trends endpoints
+- Auto-remediation, Web UI, Helm packaging
 
 ## Architecture
 
-The tool uses a hybrid Go/Python architecture:
+Hybrid Go/Python layout for performance-sensitive runtime paths and flexible CLI/analysis:
 
-- **Go Components** - Performance-critical monitoring, API server, and controller
-- **Python Components** - CLI tool, analysis engine, and integrations
+- **Go** — Monitor service (`go/cmd/monitor`) and REST API server (`go/cmd/api-server`)
+- **Python** — Library and CLI scaffold (`python/truenas_storage_monitor/`)
+
+See [Architecture](docs/ARCHITECTURE.md) for current vs planned system design.
 
 ## Quick Start
 
 ### Prerequisites
 
-- Kubernetes/OpenShift cluster with democratic-csi
+- Kubernetes or OpenShift cluster with democratic-csi
 - TrueNAS Scale with API access
-- Go 1.21+ (for development)
-- Python 3.10+ (for CLI)
+- Go 1.24+ (for Go services)
+- Python 3.10+ (for library/CLI)
 
-### Installation
-
-#### CLI Tool (Python)
+### Development setup
 
 ```bash
-pip install truenas-storage-monitor
+git clone https://github.com/tomazb/kubernetes-truenas-democratic-tool.git
+cd kubernetes-truenas-democratic-tool
+make dev-setup
+source venv/bin/activate
+make test-all
+make go-build
 ```
 
-#### Container Deployment
+Binaries are written to `bin/monitor` and `bin/api-server`.
+
+### Run the Go API server
+
+Use the Go config schema (`kubernetes:` key). See [config compatibility](docs/config-compatibility.md) and [config.go.example](config.go.example).
 
 ```bash
-# Deploy monitoring stack
-helm install truenas-monitor ./charts/truenas-monitor \
-  --namespace storage-monitoring \
-  --create-namespace
+./bin/api-server -config config.go.example -port 8080
+curl -s http://localhost:8080/health
+curl -s http://localhost:8080/api/v1/orphans
 ```
 
-### Basic Usage
+### Deploy to Kubernetes
+
+Helm is not shipped yet. Apply the bundled manifests:
 
 ```bash
-# Check for orphaned resources
-truenas-monitor orphans
-
-# Analyze storage usage
-truenas-monitor analyze --trend 30d
-
-# Generate HTML report
-truenas-monitor report --output report.html
-
-# Validate configuration
-truenas-monitor validate
+kubectl apply -f deploy/kubernetes/
 ```
+
+### Python CLI (scaffold)
+
+Install from the repo (PyPI publish is not part of the baseline):
+
+```bash
+cd python && pip install -e ".[dev,cli]"
+truenas-monitor --help
+```
+
+CLI commands (`orphans`, `analyze`, `report`, `validate`) print demo or placeholder output. For production orphan checks, use the Go API.
+
+| CLI command | Status |
+|-------------|--------|
+| `orphans` | Scaffold (demo table) |
+| `analyze` | Scaffold (hardcoded summary) |
+| `report` | Scaffold (no file written) |
+| `validate` | Scaffold (hardcoded pass/fail) |
+| `monitor` | Scaffold (sleep loop) |
 
 ## Configuration
 
-Create a `config.yaml` file:
+Go services and Python use **different YAML schemas**. Do not assume one file works for both.
+
+| Runtime | Example file | Cluster key |
+|---------|--------------|-------------|
+| Go monitor / API | [config.go.example](config.go.example) | `kubernetes:` |
+| Python CLI / library | [config.yaml.example](config.yaml.example) | `openshift:` |
+
+Full key mapping: [docs/config-compatibility.md](docs/config-compatibility.md).
+
+Minimal Go example:
 
 ```yaml
-openshift:
+kubernetes:
   kubeconfig: ~/.kube/config
   namespace: democratic-csi
 
 truenas:
   url: https://truenas.example.com
   username: admin
-  password: ${TRUENAS_PASSWORD}  # Use environment variable
-
-monitoring:
-  orphan_threshold: 24h
-  snapshot_retention: 30d
-  
-alerts:
-  slack:
-    webhook: ${SLACK_WEBHOOK}
+  password: ${TRUENAS_PASSWORD}
+  insecure: false
 ```
 
 ## Development
 
-### Test-Driven Development
-
-This project follows strict TDD practices:
+This project follows TDD practices where tests exist for changed behavior:
 
 ```bash
-# Run unit tests
-make test-unit
-
-# Run all tests with coverage
-make test-all
-
-# Run in watch mode
-make test-watch
+make test-unit      # Go + Python unit tests
+make test-all       # Full test suites
+make go-test-coverage
+make lint-all
+make ci-precheck    # Validate CI/Makefile path references
 ```
 
-### Building
+Build containers:
 
 ```bash
-# Build all components
-make build-all
-
-# Build containers
-make docker-build-all
+make docker-build-all   # monitor, api, cli images
 ```
 
 ## Contributor governance
 
-[AGENTS.md](AGENTS.md) is the canonical playbook for contributors and automation agents. It replaces the long-form `CLAUDE.md` guidance (now a short pointer).
+[AGENTS.md](AGENTS.md) is the canonical playbook for contributors and automation agents.
 
-**What changed for contributors and PRs:**
-
-- Standards, verification gates, and PR checklists live in `AGENTS.md` (not scattered session notes).
+- Standards, verification gates, and PR checklists live in `AGENTS.md`.
 - Each implementation PR needs a design spec under `docs/superpowers/specs/` before coding starts.
-- Active remediation work is tracked in `docs/superpowers/plans/2026-05-28-repo-health-remediation.md`; out-of-scope items go to `docs/superpowers/backlog.md`.
-- Review threads must be addressed or explicitly deferred before merge (see AGENTS.md).
-
-**Migration:** If you bookmarked `CLAUDE.md` for process rules, use [AGENTS.md](AGENTS.md) instead. Technical architecture docs below are unchanged.
+- Active remediation work: [remediation plan](docs/superpowers/plans/2026-05-28-repo-health-remediation.md); out-of-scope items: [backlog](docs/superpowers/backlog.md).
 
 ## Documentation
 
-- [AGENTS.md](AGENTS.md) - Contributor playbook, PR policy, and verification gates
-- [Architecture](docs/ARCHITECTURE.md) - System design and components
-- [PRD](docs/PRD.md) - Product requirements and roadmap
-- [CLAUDE.md](CLAUDE.md) - Pointer to AGENTS.md (legacy entry point)
-- [Remediation plan](docs/superpowers/plans/2026-05-28-repo-health-remediation.md) - Phased repo health work
-- [Backlog](docs/superpowers/backlog.md) - Canonical out-of-scope intake
-- [API endpoint maturity](docs/api-endpoints.md) - Implemented vs 501 routes for the Go API server
-- API Reference (planned external docs): TBD
+- [AGENTS.md](AGENTS.md) — Contributor playbook, PR policy, verification gates
+- [Architecture](docs/ARCHITECTURE.md) — Current (shipped) vs target (planned) design
+- [Config compatibility](docs/config-compatibility.md) — Go vs Python YAML schemas
+- [API endpoint maturity](docs/api-endpoints.md) — Implemented vs 501 routes (7 implemented, 15 not implemented)
+- [PRD](docs/PRD.md) — Product requirements and roadmap
+- [Remediation plan](docs/superpowers/plans/2026-05-28-repo-health-remediation.md) — Phased repo health work
+- [Backlog](docs/superpowers/backlog.md) — Canonical out-of-scope intake
 
 ## Security
 
-This tool follows security best practices:
-
-- Zero-trust architecture
-- Minimal RBAC permissions
+- TLS certificate verification enabled by default for TrueNAS (`truenas.insecure: false`)
+- Optional custom CA bundle (`truenas.ca_file`)
 - No credentials in logs
-- TLS 1.3+ for all connections
-- Regular security scans via GitHub Actions
+- Security scans via GitHub Actions
 
 ## Contributing
 
-We welcome contributions! Start with [AGENTS.md](AGENTS.md) for PR requirements, specs, and verification commands, then see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and workflow details.
+Start with [AGENTS.md](AGENTS.md) for PR requirements, then [CONTRIBUTING.md](CONTRIBUTING.md) for setup and workflow.
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests first (TDD)
-4. Commit your changes (`git commit -s -m 'Add amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Write tests for changed behavior
+4. Commit with sign-off (`git commit -s -m '...'`)
+5. Open a Pull Request
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache License 2.0 — see [LICENSE](LICENSE).
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/kubernetes-truenas-democratic-tool/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/kubernetes-truenas-democratic-tool/discussions)
-- **Security**: See [SECURITY.md](.github/SECURITY.md)
+- **Issues**: [GitHub Issues](https://github.com/tomazb/kubernetes-truenas-democratic-tool/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/tomazb/kubernetes-truenas-democratic-tool/discussions)
+- **Security**: [SECURITY.md](.github/SECURITY.md)
 
 ## Roadmap
 
-See our [Product Requirements Document](docs/PRD.md) for the complete roadmap. Key upcoming features:
-
-- Grafana integration
-- Auto-remediation framework
-- ML-based storage predictions
-- Multi-cluster support
+See [docs/PRD.md](docs/PRD.md) for the full roadmap. Upcoming themes include Grafana integration, auto-remediation, and multi-cluster support — none are shipped in the baseline.
 
 ## Acknowledgments
 
