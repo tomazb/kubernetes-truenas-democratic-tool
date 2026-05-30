@@ -103,6 +103,21 @@ sequenceDiagram
 
 **Monitor service (background):** loads config, runs scheduled scans via `go/pkg/monitor`, exports metrics when enabled.
 
+**Prometheus metrics (Go monitor — shipped):**
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `truenas_monitor_orphaned_pvs_total` | Gauge | Orphaned PV count from last scan |
+| `truenas_monitor_orphaned_pvcs_total` | Gauge | Orphaned PVC count from last scan |
+| `truenas_monitor_orphaned_snapshots_total` | Gauge | Orphaned snapshot count from last scan |
+| `truenas_monitor_scan_duration_seconds` | Gauge | Last scan duration (seconds) |
+| `truenas_monitor_scan_duration_histogram_seconds` | Histogram | Scan duration distribution |
+| `truenas_monitor_list_duration_seconds` | Histogram | Per-phase list latency (`phase` label) |
+| `truenas_monitor_pvs_total` | Gauge | Total PVs seen in last scan |
+| `truenas_monitor_pvcs_total` | Gauge | Total PVCs seen in last scan |
+| `truenas_monitor_snapshots_total` | Gauge | Total snapshots seen in last scan |
+| `truenas_monitor_last_scan_timestamp` | Gauge | Unix timestamp of last scan |
+
 ### Current technology stack
 
 | Component | Language | Framework / library | Status |

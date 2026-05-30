@@ -54,6 +54,7 @@ type DetectionResult struct {
 	TotalPVCs         int                 `json:"total_pvcs"`
 	TotalSnapshots    int                 `json:"total_snapshots"`
 	ScanDuration      time.Duration       `json:"scan_duration"`
+	PhaseTimings      map[string]time.Duration `json:"phase_timings,omitempty"`
 }
 
 // NewDetector creates a new orphan detector
@@ -92,11 +93,12 @@ func (d *Detector) DetectOrphanedResources(ctx context.Context, namespace string
 	)
 
 	result := &DetectionResult{
-		Timestamp: start,
+		Timestamp:    start,
+		PhaseTimings: make(map[string]time.Duration),
 	}
 
 	// Detect orphaned PVs
-	orphanedPVs, totalPVs, err := d.detectOrphanedPVs(ctx)
+	orphanedPVs, totalPVs, err := d.detectOrphanedPVs(ctx, result.PhaseTimings)
 	if err != nil {
 		d.logger.WithError(err).Error("Failed to detect orphaned PVs")
 		return nil, fmt.Errorf("failed to detect orphaned PVs: %w", err)
@@ -105,7 +107,7 @@ func (d *Detector) DetectOrphanedResources(ctx context.Context, namespace string
 	result.TotalPVs = totalPVs
 
 	// Detect orphaned PVCs
-	orphanedPVCs, totalPVCs, err := d.detectOrphanedPVCs(ctx, namespace)
+	orphanedPVCs, totalPVCs, err := d.detectOrphanedPVCs(ctx, namespace, result.PhaseTimings)
 	if err != nil {
 		d.logger.WithError(err).Error("Failed to detect orphaned PVCs")
 		return nil, fmt.Errorf("failed to detect orphaned PVCs: %w", err)
@@ -114,7 +116,7 @@ func (d *Detector) DetectOrphanedResources(ctx context.Context, namespace string
 	result.TotalPVCs = totalPVCs
 
 	// Detect orphaned snapshots
-	orphanedSnapshots, totalSnapshots, err := d.detectOrphanedSnapshots(ctx, namespace)
+	orphanedSnapshots, totalSnapshots, err := d.detectOrphanedSnapshots(ctx, namespace, result.PhaseTimings)
 	if err != nil {
 		d.logger.WithError(err).Error("Failed to detect orphaned snapshots")
 		return nil, fmt.Errorf("failed to detect orphaned snapshots: %w", err)
@@ -155,7 +157,7 @@ func (d *Detector) WithAgeThreshold(ageThreshold time.Duration) *Detector {
 func (d *Detector) DetectOrphanedPVs(ctx context.Context) (*DetectionResult, error) {
 	start := time.Now()
 
-	orphanedPVs, totalPVs, err := d.detectOrphanedPVs(ctx)
+	orphanedPVs, totalPVs, err := d.detectOrphanedPVs(ctx, nil)
 	if err != nil {
 		d.logger.WithError(err).Error("Failed to detect orphaned PVs")
 		return nil, fmt.Errorf("failed to detect orphaned PVs: %w", err)
@@ -178,15 +180,23 @@ func (d *Detector) DetectOrphanedPVs(ctx context.Context) (*DetectionResult, err
 }
 
 // detectOrphanedPVs identifies PVs without corresponding TrueNAS volumes
-func (d *Detector) detectOrphanedPVs(ctx context.Context) ([]OrphanedResource, int, error) {
+func (d *Detector) detectOrphanedPVs(ctx context.Context, timings map[string]time.Duration) ([]OrphanedResource, int, error) {
 	// Get all democratic-csi PVs from Kubernetes
+	pvStart := time.Now()
 	pvs, err := d.k8sClient.ListDemocraticCSIPersistentVolumes(ctx)
+	if timings != nil {
+		timings["k8s_pvs"] = time.Since(pvStart)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list democratic-csi PVs: %w", err)
 	}
 
 	// Get all volumes from TrueNAS
+	tnStart := time.Now()
 	truenasVolumes, err := d.truenasClient.ListVolumes(ctx)
+	if timings != nil {
+		timings["truenas_datasets"] = time.Since(tnStart)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list TrueNAS volumes: %w", err)
 	}
@@ -241,7 +251,14 @@ func (d *Detector) detectOrphanedPVs(ctx context.Context) ([]OrphanedResource, i
 }
 
 // detectOrphanedPVCs identifies unbound PVCs older than threshold
-func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string) ([]OrphanedResource, int, error) {
+func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string, timings map[string]time.Duration) ([]OrphanedResource, int, error) {
+	pvcPhaseStart := time.Now()
+	defer func() {
+		if timings != nil {
+			timings["k8s_pvcs"] = time.Since(pvcPhaseStart)
+		}
+	}()
+
 	// Get unbound PVCs
 	unboundPVCs, err := d.k8sClient.ListUnboundPersistentVolumeClaims(ctx, namespace)
 	if err != nil {
@@ -298,13 +315,21 @@ func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string) ([]
 }
 
 // detectOrphanedSnapshots identifies snapshots without corresponding resources
-func (d *Detector) detectOrphanedSnapshots(ctx context.Context, namespace string) ([]OrphanedResource, int, error) {
+func (d *Detector) detectOrphanedSnapshots(ctx context.Context, namespace string, timings map[string]time.Duration) ([]OrphanedResource, int, error) {
+	k8sStart := time.Now()
 	k8sSnapshots, err := d.k8sClient.ListVolumeSnapshots(ctx, namespace)
+	if timings != nil {
+		timings["k8s_snapshots"] = time.Since(k8sStart)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list Kubernetes snapshots: %w", err)
 	}
 
+	tnStart := time.Now()
 	truenasSnapshots, err := d.truenasClient.ListSnapshots(ctx)
+	if timings != nil {
+		timings["truenas_snapshots"] = time.Since(tnStart)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list TrueNAS snapshots: %w", err)
 	}

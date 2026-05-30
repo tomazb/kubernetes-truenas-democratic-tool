@@ -15,7 +15,7 @@ Orphan detection runs synchronously on each request for implemented orphan route
 
 | Route | Status | Notes |
 |-------|--------|-------|
-| `GET /api/v1/orphans` | Implemented | Sync `orphan.Detector`; query: `namespace`, `age_threshold` (default `24h`) |
+| `GET /api/v1/orphans` | Implemented | Sync `orphan.Detector`; query: `namespace`, `age_threshold` (default from config); response includes `snapshot_retention` |
 | `GET /api/v1/orphans/pvs` | Implemented | PV orphan subset; query: `age_threshold` |
 | `GET /api/v1/orphans/pvcs` | Not implemented (501) | |
 | `GET /api/v1/orphans/snapshots` | Not implemented (501) | |

@@ -95,11 +95,11 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Baseline remediation complete (M1–M3); Stage 2+ next
+- **Current phase:** Stage 2 — In Progress (M4 scalability foundation)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-30
 - **Last merged:** PR 8 documentation accuracy [#58](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/58) (2026-05-30)
-- **Next up:** Stage 2 — Scalability foundation (see Phase 2+ roadmap)
+- **Next up:** PR 9 — Config wiring + performance observability
 
 ## Milestones
 
@@ -374,9 +374,72 @@ Suggested worktree layout:
 
 ### Stage 2: Scalability Foundation
 
-- [ ] Introduce incremental/watch-based detection where practical.
-- [ ] Add caching/TTL for expensive list operations.
-- [ ] Define and track performance budgets (scan time, API p95, memory).
+- [ ] Introduce incremental/watch-based detection where practical (PR 11).
+- [ ] Add caching/TTL for expensive list operations (PR 10).
+- [ ] Define and track performance budgets (scan time, API p95, memory) (PR 12).
+- [ ] Wire config thresholds and performance observability baseline (PR 9).
+
+#### PR 9: Config Wiring and Performance Observability
+
+- **Status:** In Progress
+- **Risk:** Low
+- **Focus:** Wire YAML orphan/snapshot thresholds into Go monitor/API and Python monitor; add Prometheus histograms and Python scan timing.
+- **Branch/worktree:**
+  - Branch: `feature/pr-9-config-perf-observability`
+  - Worktree: `.worktrees/pr-9-config-perf-observability`
+- **Spec/design:** `docs/superpowers/specs/2026-05-30-pr-9-config-perf-observability-design.md`
+- **Implementation plan:** `docs/superpowers/plans/2026-05-30-pr-9-config-perf-observability.md`
+- **Files (expected):**
+  - `go/pkg/monitor/service.go`, `go/cmd/monitor/main.go`
+  - `go/pkg/api/server.go`, `go/cmd/api-server/main.go`
+  - `go/pkg/metrics/exporter.go`, `go/pkg/orphan/detector.go`
+  - `python/truenas_storage_monitor/monitor.py`, `config.py`, `observability.py`
+  - `docs/config-compatibility.md`, `docs/ARCHITECTURE.md`
+- **Acceptance criteria:**
+  - [x] Go monitor and API use YAML orphan/snapshot thresholds (no hardcoded 24h/30d).
+  - [x] Python monitor uses config thresholds when not explicitly overridden.
+  - [x] Go exports scan histogram + object-count metrics; Python logs scan duration and per-list timing.
+  - [x] Tests and lint pass for touched stacks.
+- **PR URL:** (pending)
+
+#### PR 10: TTL Inventory Cache
+
+- **Status:** Planned
+- **Risk:** Medium
+- **Focus:** In-process TTL cache for expensive K8s/TrueNAS list operations; dedupe duplicate PVC lists in detector.
+- **Branch/worktree:**
+  - Branch: `feature/pr-10-inventory-cache`
+  - Worktree: `.worktrees/pr-10-inventory-cache`
+- **Depends on:** PR 9 (metrics baseline)
+- **Acceptance criteria:**
+  - [ ] Cache hit reduces external list call count within TTL window.
+  - [ ] TTL expiry triggers refresh; tests cover hit/miss/expiry.
+
+#### PR 11: Watch-Based Incremental Reconcile
+
+- **Status:** Planned
+- **Risk:** High
+- **Focus:** client-go SharedInformers for PV/PVC/VolumeSnapshot; debounced reconcile; Python watch hook integration.
+- **Branch/worktree:**
+  - Branch: `feature/pr-11-watch-reconcile`
+  - Worktree: `.worktrees/pr-11-watch-reconcile`
+- **Depends on:** PR 10
+- **Acceptance criteria:**
+  - [ ] Watch mode opt-in via config (`poll` default); full-scan fallback on resync failure.
+  - [ ] Debounced reconcile triggers detector without full poll on every event.
+
+#### PR 12: Performance Budgets and Cardinality Docs
+
+- **Status:** Planned
+- **Risk:** Low
+- **Focus:** Configurable scan/list latency budgets; benchmark gate; supported cardinality documented.
+- **Branch/worktree:**
+  - Branch: `feature/pr-12-performance-budgets`
+  - Worktree: `.worktrees/pr-12-performance-budgets`
+- **Depends on:** PR 9–11
+- **Acceptance criteria:**
+  - [ ] Budget config keys validated and exported as metrics or log warnings on breach.
+  - [ ] ARCHITECTURE documents supported object-count envelope.
 
 ### Stage 3: Product Depth
 
@@ -404,4 +467,8 @@ Suggested worktree layout:
 - [x] Complete PR 6 (reliability/performance guardrails).
 - [x] Complete PR 7 (CI trust).
 - [x] Complete PR 8 (docs accuracy).
-- [ ] Start Stage 2+ initiatives after baseline PRs are merged.
+- [x] Start Stage 2+ initiatives after baseline PRs are merged.
+- [ ] Complete PR 9 (config wiring + performance observability).
+- [ ] Complete PR 10 (TTL inventory cache).
+- [ ] Complete PR 11 (watch/incremental reconcile).
+- [ ] Complete PR 12 (performance budgets).

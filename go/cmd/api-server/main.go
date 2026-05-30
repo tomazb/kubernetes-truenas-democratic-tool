@@ -80,10 +80,12 @@ func main() {
 
 	// Initialize API server
 	apiServer, err := api.NewServer(api.Config{
-		Port:          *port,
-		K8sClient:     k8sClient,
-		TruenasClient: truenasClient,
-		Logger:        logger,
+		Port:              *port,
+		K8sClient:         k8sClient,
+		TruenasClient:     truenasClient,
+		Logger:            logger,
+		OrphanThreshold:   cfg.Monitor.OrphanThreshold,
+		SnapshotRetention: cfg.Monitor.SnapshotRetention,
 	})
 	if err != nil {
 		logger.Fatal("Failed to initialize API server", zap.Error(err))

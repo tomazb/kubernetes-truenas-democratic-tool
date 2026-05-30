@@ -1,6 +1,8 @@
 """Configuration management for TrueNAS Storage Monitor."""
 
 import os
+import re
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
@@ -116,6 +118,24 @@ class Config:
             max_retries=truenas.get("max_retries", 3),
         )
 
+    @property
+    def orphan_threshold(self) -> timedelta:
+        """Orphan age threshold from monitoring.orphan_threshold."""
+        raw = self.monitoring.get("orphan_threshold", "24h")
+        return parse_duration(raw)
+
+    @property
+    def snapshot_retention(self) -> timedelta:
+        """Snapshot retention from monitoring.snapshot.max_age."""
+        snapshot = self.monitoring.get("snapshot", {})
+        raw = snapshot.get("max_age", "30d")
+        return parse_duration(raw)
+
+    @property
+    def metrics_enabled(self) -> bool:
+        """Whether Prometheus metrics export is enabled."""
+        return bool(self.get("metrics.enabled", False))
+
 
 def parse_truenas_url(url: str) -> Tuple[str, int, bool]:
     """Parse a TrueNAS URL into host, port, and TLS scheme flag."""
@@ -155,6 +175,44 @@ def parse_timeout_seconds(value: Any) -> int:
     if seconds <= 0:
         raise ConfigurationError(f"Timeout must be > 0 seconds: {value!r}")
     return seconds
+
+
+_DURATION_PATTERN = re.compile(r"^(\d+(?:\.\d+)?)([smhdw])?$", re.IGNORECASE)
+
+
+def parse_duration(value: Any) -> timedelta:
+    """Parse duration strings such as 24h, 720h, 30d, or 30m into timedelta."""
+    if isinstance(value, timedelta):
+        return value
+    if isinstance(value, (int, float)):
+        if value <= 0:
+            raise ConfigurationError(f"Duration must be > 0: {value!r}")
+        return timedelta(hours=float(value))
+    if not isinstance(value, str):
+        raise ConfigurationError(f"Invalid duration value: {value!r}")
+
+    stripped = value.strip().lower()
+    match = _DURATION_PATTERN.match(stripped)
+    if not match:
+        raise ConfigurationError(f"Invalid duration format: {value!r}")
+
+    amount = float(match.group(1))
+    unit = match.group(2) or "h"
+    if amount <= 0:
+        raise ConfigurationError(f"Duration must be > 0: {value!r}")
+
+    if unit == "s":
+        return timedelta(seconds=amount)
+    if unit == "m":
+        return timedelta(minutes=amount)
+    if unit == "h":
+        return timedelta(hours=amount)
+    if unit == "d":
+        return timedelta(days=amount)
+    if unit == "w":
+        return timedelta(weeks=amount)
+
+    raise ConfigurationError(f"Unsupported duration unit in: {value!r}")
 
 
 def normalize_cluster_config(config: Dict[str, Any]) -> Dict[str, Any]:

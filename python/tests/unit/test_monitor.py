@@ -28,6 +28,9 @@ class TestMonitor:
             host="truenas.test",
             api_key="test-key",
         )
+        config.orphan_threshold = timedelta(hours=24)
+        config.snapshot_retention = timedelta(days=30)
+        config.metrics_enabled = False
         return config
 
     @pytest.fixture
@@ -99,6 +102,9 @@ class TestMonitor:
         assert result["orphaned_pvs"][0]["name"] == "pv-test"
         assert len(result["orphaned_pvcs"]) == 1
         assert result["orphaned_pvcs"][0]["name"] == "pvc-test"
+        assert result["scan_duration"] >= 0
+        assert "phase_timings" in result
+        assert "k8s_pvs" in result["phase_timings"]
 
     def test_find_orphaned_resources_naive_creation_time(self, monitor):
         """Naive creation timestamps do not raise TypeError."""

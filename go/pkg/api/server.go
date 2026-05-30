@@ -15,9 +15,19 @@ import (
 )
 
 const (
-	defaultOrphanAgeThreshold     = 24 * time.Hour
 	defaultOrphanAgeThresholdQuery = "24h"
 )
+
+// formatDurationForAPI returns a compact duration string for API responses.
+func formatDurationForAPI(d time.Duration) string {
+	if d <= 0 {
+		return defaultOrphanAgeThresholdQuery
+	}
+	if d%time.Hour == 0 {
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return d.String()
+}
 
 // Server represents the API server
 type Server struct {
@@ -25,16 +35,20 @@ type Server struct {
 	k8sClient               k8s.Client
 	truenasClient           truenas.Client
 	logger                  *zap.Logger
-	orphanDetector *orphan.Detector
+	orphanDetector          *orphan.Detector
+	defaultOrphanThreshold  time.Duration
+	defaultSnapshotRetention time.Duration
 }
 
 // Config holds the server configuration
 type Config struct {
-	Port            int
-	K8sClient       k8s.Client
-	TruenasClient   truenas.Client
-	Logger          *zap.Logger
-	TrustedProxies  []string // empty/nil: do not trust X-Forwarded-For; set for ingress/LB CIDRs
+	Port                     int
+	K8sClient                k8s.Client
+	TruenasClient            truenas.Client
+	Logger                   *zap.Logger
+	TrustedProxies           []string // empty/nil: do not trust X-Forwarded-For; set for ingress/LB CIDRs
+	OrphanThreshold          time.Duration
+	SnapshotRetention        time.Duration
 }
 
 // NewServer creates a new API server with comprehensive middleware
@@ -77,9 +91,18 @@ func NewServer(config Config) (*Server, error) {
 	// Add per-client rate limiting middleware
 	router.Use(perClientRateLimitMiddleware(nil))
 
+	orphanThreshold := config.OrphanThreshold
+	if orphanThreshold == 0 {
+		orphanThreshold = 24 * time.Hour
+	}
+	snapshotRetention := config.SnapshotRetention
+	if snapshotRetention == 0 {
+		snapshotRetention = 30 * 24 * time.Hour
+	}
+
 	orphanDetector, err := orphan.NewDetector(config.K8sClient, config.TruenasClient, orphan.Config{
-		AgeThreshold:      defaultOrphanAgeThreshold,
-		SnapshotRetention: 30 * 24 * time.Hour,
+		AgeThreshold:      orphanThreshold,
+		SnapshotRetention: snapshotRetention,
 		DryRun:            true,
 	})
 	if err != nil {
@@ -87,10 +110,12 @@ func NewServer(config Config) (*Server, error) {
 	}
 
 	server := &Server{
-		k8sClient:      config.K8sClient,
-		truenasClient:  config.TruenasClient,
-		logger:         logger,
-		orphanDetector: orphanDetector,
+		k8sClient:                config.K8sClient,
+		truenasClient:            config.TruenasClient,
+		logger:                   logger,
+		orphanDetector:           orphanDetector,
+		defaultOrphanThreshold:   orphanThreshold,
+		defaultSnapshotRetention: snapshotRetention,
 	}
 
 	// Setup routes
@@ -174,7 +199,7 @@ func (s *Server) setupRoutes(router *gin.Engine) {
 func (s *Server) parseAgeThreshold(c *gin.Context) (time.Duration, string, bool) {
 	ageThresholdRaw, ok := c.GetQuery("age_threshold")
 	if !ok {
-		return defaultOrphanAgeThreshold, defaultOrphanAgeThresholdQuery, true
+		return s.defaultOrphanThreshold, formatDurationForAPI(s.defaultOrphanThreshold), true
 	}
 
 	parsed, err := time.ParseDuration(ageThresholdRaw)
@@ -271,6 +296,7 @@ func (s *Server) listOrphansHandler(c *gin.Context) {
 		"timestamp":          result.Timestamp,
 		"namespace":          namespace,
 		"age_threshold":      ageThresholdRaw,
+		"snapshot_retention": formatDurationForAPI(s.defaultSnapshotRetention),
 		"orphaned_pvs":       result.OrphanedPVs,
 		"orphaned_pvcs":      result.OrphanedPVCs,
 		"orphaned_snapshots": result.OrphanedSnapshots,
