@@ -338,7 +338,7 @@ Suggested worktree layout:
   - [ ] CI is green against current code layout.
   - [ ] Release workflow references valid outputs/artifacts.
   - [ ] Tests fail on regressions, not stale wiring.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/57
 
 ### PR 8: Documentation Accuracy Refresh
 
