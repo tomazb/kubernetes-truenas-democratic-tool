@@ -50,7 +50,6 @@ func k8sSnapshotDatasetHints(k8s snapshotv1.VolumeSnapshot) []string {
 
 	if k8s.Spec.Source.PersistentVolumeClaimName != nil {
 		pvc := *k8s.Spec.Source.PersistentVolumeClaimName
-		add(pvc)
 		if k8s.Namespace != "" {
 			add(k8s.Namespace + "/" + pvc)
 		}
