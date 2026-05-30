@@ -310,7 +310,7 @@ Suggested worktree layout:
   - [x] No nil exporter panic path.
   - [x] No global limiter starvation by a single noisy client.
   - [x] Retry behavior avoids repeated non-transient failures.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/56
 
 ### PR 7: Test and CI/Release Trustworthiness
 
