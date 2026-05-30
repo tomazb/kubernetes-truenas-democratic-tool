@@ -230,6 +230,45 @@ func TestClient_ValidateRBACPermissions_Allowed(t *testing.T) {
 	if result.Namespace != "monitoring" {
 		t.Fatalf("namespace = %q, want monitoring", result.Namespace)
 	}
+	if !result.PermissionChecks["persistentvolumeclaims/list"] {
+		t.Fatal("expected namespaced PVC list check")
+	}
+}
+
+func TestClient_ValidateRBACPermissions_AllNamespacesScan(t *testing.T) {
+	ctx := context.Background()
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.PrependReactor(
+		"create",
+		"selfsubjectaccessreviews",
+		func(action k8stesting.Action) (bool, runtime.Object, error) {
+			review := action.(k8stesting.CreateAction).GetObject().(*authorizationv1.SelfSubjectAccessReview)
+			review.Status = authorizationv1.SubjectAccessReviewStatus{Allowed: true}
+			if review.Spec.ResourceAttributes != nil &&
+				review.Spec.ResourceAttributes.Namespace != "" &&
+				review.Spec.ResourceAttributes.Resource == "persistentvolumeclaims" {
+				t.Fatal("expected cluster-wide PVC SSAR without namespace when scan namespace is empty")
+			}
+			return true, review, nil
+		},
+	)
+
+	c := &client{
+		clientset: fakeClient,
+		config:    Config{Namespace: ""},
+		logger:    testLogger(t),
+	}
+
+	result, err := c.ValidateRBACPermissions(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Namespace != "" {
+		t.Fatalf("namespace = %q, want empty string for all-namespace scan mode", result.Namespace)
+	}
+	if !result.PermissionChecks["persistentvolumeclaims/list (all namespaces)"] {
+		t.Fatal("expected all-namespaces PVC list key")
+	}
 }
 
 func TestClient_ValidateRBACPermissions_Denied(t *testing.T) {

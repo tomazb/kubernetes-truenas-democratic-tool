@@ -12,13 +12,15 @@ import (
 
 func TestExtractDatasetFromVolumeHandle(t *testing.T) {
 	tests := []struct {
-		name    string
-		handle  string
-		want    string
+		name   string
+		handle string
+		want   string
 	}{
 		{"iscsi handle", "iqn.2005-10.org.freenas.ctl:my-volume", "my-volume"},
 		{"zfs path handle", "tank/k8s/vol-1", "vol-1"},
 		{"plain handle", "standalone-id", "standalone-id"},
+		{"zfs snapshot suffix stripped", "tank/k8s/vol-1@daily", "vol-1"},
+		{"malformed iscsi trailing colon yields empty token", "iqn.2005-10.org.freenas.ctl:", ""},
 	}
 
 	for _, tt := range tests {
@@ -47,20 +49,44 @@ func TestVolumeMatches(t *testing.T) {
 			want:         true,
 		},
 		{
-			name:         "path contains dataset",
+			name:         "path suffix match",
 			volume:       truenas.Volume{Name: "other", Path: "/mnt/tank/k8s/vol-1"},
 			volumeHandle: "tank/k8s/vol-1",
 			datasetName:  "vol-1",
 			want:         true,
 		},
 		{
-			name: "unrelated property substring does not match",
+			name: "property exact match restored",
+			volume: truenas.Volume{
+				Name:       "unrelated",
+				Properties: map[string]string{"zfs:dataset": "tank/k8s/vol-1"},
+			},
+			volumeHandle: "tank/k8s/vol-1",
+			datasetName:  "vol-1",
+			want:         true,
+		},
+		{
+			name: "property substring collision avoided",
 			volume: truenas.Volume{
 				Name:       "unrelated",
 				Properties: map[string]string{"note": "prefix-vol-1-suffix"},
 			},
 			volumeHandle: "tank/k8s/vol-1",
 			datasetName:  "vol-1",
+			want:         false,
+		},
+		{
+			name:         "vol-1 does not match vol-10 path",
+			volume:       truenas.Volume{Path: "/mnt/tank/k8s/vol-10"},
+			volumeHandle: "tank/k8s/vol-1",
+			datasetName:  "vol-1",
+			want:         false,
+		},
+		{
+			name:         "empty dataset token never matches",
+			volume:       truenas.Volume{ID: "anything"},
+			volumeHandle: "tank/k8s/",
+			datasetName:  "",
 			want:         false,
 		},
 		{
@@ -86,42 +112,45 @@ func TestSnapshotCorrelatesWithTrueNAS(t *testing.T) {
 	old := time.Now().Add(-48 * time.Hour)
 	k8sSnap := snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:              "snap-a",
+			Name:              "daily",
 			Namespace:         "apps",
 			CreationTimestamp: metav1.NewTime(old),
+			Annotations: map[string]string{
+				"zfs.dataset": "tank/k8s/vol-1",
+			},
 		},
 	}
 
 	tests := []struct {
-		name     string
-		truenas  []truenas.Snapshot
-		want     bool
+		name    string
+		truenas []truenas.Snapshot
+		want    bool
 	}{
 		{
-			name: "matching snapshot name",
+			name: "matching name and dataset",
 			truenas: []truenas.Snapshot{
-				{Name: "snap-a", Dataset: "tank/k8s/vol-1"},
+				{Name: "daily", Dataset: "tank/k8s/vol-1"},
 			},
 			want: true,
 		},
 		{
-			name: "matching dataset@name",
+			name: "full zfs snapshot id with dataset hint",
 			truenas: []truenas.Snapshot{
-				{Name: "snap-a", Dataset: "tank/k8s/vol-1"},
+				{Name: "tank/k8s/vol-1@daily", Dataset: "tank/k8s/vol-1"},
 			},
 			want: true,
 		},
 		{
-			name: "full zfs snapshot id",
+			name: "same snapshot name on different dataset is not a peer",
 			truenas: []truenas.Snapshot{
-				{Name: "tank/k8s/vol-1@snap-a", Dataset: "tank/k8s/vol-1"},
+				{Name: "daily", Dataset: "tank/k8s/vol-2"},
 			},
-			want: true,
+			want: false,
 		},
 		{
 			name: "no peer",
 			truenas: []truenas.Snapshot{
-				{Name: "other-snap", Dataset: "tank/k8s/vol-2"},
+				{Name: "other-snap", Dataset: "tank/k8s/vol-9"},
 			},
 			want: false,
 		},
@@ -145,6 +174,15 @@ func TestTruenasSnapshotCorrelatesWithK8s(t *testing.T) {
 				Name:              "snap-a",
 				Namespace:         "apps",
 				CreationTimestamp: old,
+				Annotations: map[string]string{
+					"zfs.dataset": "tank/k8s/vol-1",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "tank/k8s/vol-1@snap-a",
+				CreationTimestamp: old,
 			},
 		},
 	}
@@ -155,12 +193,12 @@ func TestTruenasSnapshotCorrelatesWithK8s(t *testing.T) {
 		want    bool
 	}{
 		{
-			name:    "name match",
+			name:    "name and dataset hint match",
 			truenas: truenas.Snapshot{Name: "snap-a", Dataset: "tank/k8s/vol-1"},
 			want:    true,
 		},
 		{
-			name:    "full id match",
+			name:    "full zfs id matches k8s object named with full id",
 			truenas: truenas.Snapshot{Name: "tank/k8s/vol-1@snap-a", Dataset: "tank/k8s/vol-1"},
 			want:    true,
 		},

@@ -9,45 +9,61 @@ import (
 )
 
 type rbacRequirement struct {
-	key             string
-	group           string
-	version         string
-	resource        string
-	verb            string
-	namespace       string
-	clusterScoped   bool
+	key           string
+	group         string
+	version       string
+	resource      string
+	verb          string
+	namespace     string
+	clusterScoped bool
 }
 
 func (c *client) ValidateRBACPermissions(ctx context.Context) (*RBACValidationResult, error) {
-	namespace := c.config.Namespace
-	if namespace == "" {
-		namespace = "default"
-	}
+	scanAllNamespaces := c.config.Namespace == ""
+	reportNamespace := c.config.Namespace
 
 	requirements := []rbacRequirement{
 		{key: "persistentvolumes/list", resource: "persistentvolumes", verb: "list", clusterScoped: true},
 		{key: "persistentvolumes/get", resource: "persistentvolumes", verb: "get", clusterScoped: true},
-		{key: "persistentvolumeclaims/list", resource: "persistentvolumeclaims", verb: "list", namespace: namespace},
-		{key: "persistentvolumeclaims/get", resource: "persistentvolumeclaims", verb: "get", namespace: namespace},
 	}
 
+	pvcNamespace := c.config.Namespace
+	pvcListKey := "persistentvolumeclaims/list"
+	pvcGetKey := "persistentvolumeclaims/get"
+	if scanAllNamespaces {
+		pvcListKey = "persistentvolumeclaims/list (all namespaces)"
+		pvcGetKey = "persistentvolumeclaims/get (all namespaces)"
+	}
+
+	requirements = append(requirements,
+		rbacRequirement{key: pvcListKey, resource: "persistentvolumeclaims", verb: "list", namespace: pvcNamespace},
+		rbacRequirement{key: pvcGetKey, resource: "persistentvolumeclaims", verb: "get", namespace: pvcNamespace},
+	)
+
 	if c.snapshotClient != nil {
+		snapNS := c.config.Namespace
+		snapListKey := "volumesnapshots.snapshot.storage.k8s.io/list"
+		snapGetKey := "volumesnapshots.snapshot.storage.k8s.io/get"
+		if scanAllNamespaces {
+			snapListKey = "volumesnapshots.snapshot.storage.k8s.io/list (all namespaces)"
+			snapGetKey = "volumesnapshots.snapshot.storage.k8s.io/get (all namespaces)"
+		}
 		requirements = append(requirements,
 			rbacRequirement{
-				key:       "volumesnapshots.snapshot.storage.k8s.io/list",
+				key:       snapListKey,
 				group:     "snapshot.storage.k8s.io",
 				version:   "v1",
 				resource:  "volumesnapshots",
 				verb:      "list",
-				namespace: namespace,
+				namespace: snapNS,
 			},
 			rbacRequirement{
-				key:       "volumesnapshots.snapshot.storage.k8s.io/get",
+				key:       snapGetKey,
 				group:     "snapshot.storage.k8s.io",
 				version:   "v1",
 				resource:  "volumesnapshots",
 				verb:      "get",
-				namespace: namespace,
+				namespace: snapNS,
 			},
 		)
 	}
@@ -76,7 +92,7 @@ func (c *client) ValidateRBACPermissions(ctx context.Context) (*RBACValidationRe
 		MissingPermissions:     append(missing, notes...),
 		PermissionChecks:       permissionChecks,
 		ServiceAccount:         "current",
-		Namespace:              namespace,
+		Namespace:              reportNamespace,
 	}, nil
 }
 
@@ -92,7 +108,7 @@ func (c *client) checkSelfSubjectAccess(ctx context.Context, req rbacRequirement
 		Version:  version,
 		Resource: req.resource,
 	}
-	if !req.clusterScoped {
+	if !req.clusterScoped && req.namespace != "" {
 		attrs.Namespace = req.namespace
 	}
 

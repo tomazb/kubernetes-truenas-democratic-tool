@@ -25,14 +25,80 @@ func truenasSnapshotComponentName(s truenas.Snapshot) string {
 	return s.Name
 }
 
-func snapshotCorrelatesWithTrueNAS(k8s snapshotv1.VolumeSnapshot, truenasSnapshots []truenas.Snapshot) bool {
-	k8sName := k8s.Name
-	for _, tn := range truenasSnapshots {
-		full := truenasSnapshotFullName(tn)
-		if tn.Name == k8sName || full == k8sName || strings.HasSuffix(full, "@"+k8sName) {
+func snapshotNameMatches(k8sName string, tn truenas.Snapshot) bool {
+	full := truenasSnapshotFullName(tn)
+	component := truenasSnapshotComponentName(tn)
+	return tn.Name == k8sName || full == k8sName || strings.HasSuffix(full, "@"+k8sName) || component == k8sName
+}
+
+func k8sSnapshotDatasetHints(k8s snapshotv1.VolumeSnapshot) []string {
+	var hints []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			hints = append(hints, s)
+		}
+	}
+
+	for _, m := range []map[string]string{k8s.Labels, k8s.Annotations} {
+		for _, v := range m {
+			if strings.Contains(v, "/") {
+				add(v)
+			}
+		}
+	}
+
+	if k8s.Spec.Source.PersistentVolumeClaimName != nil {
+		pvc := *k8s.Spec.Source.PersistentVolumeClaimName
+		add(pvc)
+		if k8s.Namespace != "" {
+			add(k8s.Namespace + "/" + pvc)
+		}
+	}
+	if k8s.Spec.Source.VolumeSnapshotContentName != nil {
+		add(*k8s.Spec.Source.VolumeSnapshotContentName)
+	}
+	if k8s.Status != nil && k8s.Status.BoundVolumeSnapshotContentName != nil {
+		add(*k8s.Status.BoundVolumeSnapshotContentName)
+	}
+
+	return hints
+}
+
+func truenasDatasetMatchesHints(dataset string, hints []string) bool {
+	dataset = strings.Trim(dataset, "/")
+	if dataset == "" {
+		return false
+	}
+	for _, hint := range hints {
+		hint = strings.Trim(hint, "/")
+		if hint == dataset {
 			return true
 		}
-		if component := truenasSnapshotComponentName(tn); component == k8sName {
+		if strings.HasSuffix(hint, "/"+dataset) || strings.HasSuffix(dataset, "/"+hint) {
+			return true
+		}
+	}
+	return false
+}
+
+func snapshotCorrelatesPair(k8s snapshotv1.VolumeSnapshot, tn truenas.Snapshot) bool {
+	if !snapshotNameMatches(k8s.Name, tn) {
+		return false
+	}
+
+	hints := k8sSnapshotDatasetHints(k8s)
+	if len(hints) == 0 {
+		return truenasSnapshotFullName(tn) == k8s.Name
+	}
+
+	return truenasDatasetMatchesHints(tn.Dataset, hints) ||
+		truenasDatasetMatchesHints(truenasSnapshotFullName(tn), hints)
+}
+
+func snapshotCorrelatesWithTrueNAS(k8s snapshotv1.VolumeSnapshot, truenasSnapshots []truenas.Snapshot) bool {
+	for _, tn := range truenasSnapshots {
+		if snapshotCorrelatesPair(k8s, tn) {
 			return true
 		}
 	}
@@ -40,10 +106,8 @@ func snapshotCorrelatesWithTrueNAS(k8s snapshotv1.VolumeSnapshot, truenasSnapsho
 }
 
 func truenasSnapshotCorrelatesWithK8s(tn truenas.Snapshot, k8sSnapshots []snapshotv1.VolumeSnapshot) bool {
-	component := truenasSnapshotComponentName(tn)
-	full := truenasSnapshotFullName(tn)
 	for _, ks := range k8sSnapshots {
-		if ks.Name == component || ks.Name == tn.Name || ks.Name == full {
+		if snapshotCorrelatesPair(ks, tn) {
 			return true
 		}
 	}
@@ -51,29 +115,51 @@ func truenasSnapshotCorrelatesWithK8s(tn truenas.Snapshot, k8sSnapshots []snapsh
 }
 
 func extractDatasetFromVolumeHandle(volumeHandle string) string {
-	if strings.Contains(volumeHandle, "iqn.") {
-		parts := strings.Split(volumeHandle, ":")
-		if len(parts) > 1 {
-			return parts[len(parts)-1]
+	handle := strings.TrimSpace(volumeHandle)
+	if strings.Contains(handle, "iqn.") {
+		handle = strings.TrimRight(handle, ":")
+		if idx := strings.LastIndex(handle, ":"); idx >= 0 && idx+1 < len(handle) {
+			handle = handle[idx+1:]
+		} else {
+			return ""
 		}
-	} else if strings.Contains(volumeHandle, "/") {
-		parts := strings.Split(volumeHandle, "/")
-		if len(parts) > 0 {
-			return parts[len(parts)-1]
+	} else {
+		handle = strings.TrimRight(handle, "/")
+		if idx := strings.LastIndex(handle, "/"); idx >= 0 && idx+1 < len(handle) {
+			handle = handle[idx+1:]
 		}
 	}
-	return volumeHandle
+
+	if idx := strings.LastIndex(handle, "@"); idx >= 0 {
+		handle = handle[:idx]
+	}
+	return strings.TrimSpace(handle)
 }
 
 func volumeMatches(volume truenas.Volume, volumeHandle, datasetName string) bool {
+	if datasetName == "" {
+		return false
+	}
 	if volume.Name == datasetName || volume.Name == volumeHandle {
 		return true
 	}
-	if strings.Contains(volume.ID, datasetName) {
+	if volume.ID == datasetName ||
+		strings.HasSuffix(volume.ID, "/"+datasetName) ||
+		strings.HasSuffix(volume.ID, ":"+datasetName) {
 		return true
 	}
-	if strings.Contains(volume.Path, datasetName) {
+	path := strings.TrimRight(volume.Path, "/")
+	if path == datasetName || strings.HasSuffix(path, "/"+datasetName) {
 		return true
+	}
+	if volume.Properties != nil {
+		for _, value := range volume.Properties {
+			if value == datasetName ||
+				strings.HasSuffix(value, "/"+datasetName) ||
+				strings.HasSuffix(value, ":"+datasetName) {
+				return true
+			}
+		}
 	}
 	return false
 }
