@@ -1,17 +1,127 @@
-# Architecture Document
-# Kubernetes TrueNAS Democratic Tool
+# Architecture Document — Kubernetes TrueNAS Democratic Tool
 
 ## Table of Contents
-1. [Overview](#overview)
-2. [System Architecture](#system-architecture)
-3. [Component Architecture](#component-architecture)
-4. [Data Flow](#data-flow)
-5. [Security Architecture](#security-architecture)
-6. [Deployment Architecture](#deployment-architecture)
-7. [Integration Architecture](#integration-architecture)
-8. [Technology Stack](#technology-stack)
-9. [Scalability & Performance](#scalability--performance)
-10. [High Availability](#high-availability)
+
+**Current (shipped):**
+
+1. [Current architecture](#current-architecture-shipped)
+2. [Current data flow](#current-data-flow)
+3. [Current technology stack](#current-technology-stack)
+
+**Target (planned — not shipped):**
+
+4. [Target overview](#1-overview)
+5. [System architecture](#2-system-architecture)
+6. [Component architecture](#3-component-architecture)
+7. [Data flow](#4-data-flow)
+8. [Security architecture](#5-security-architecture)
+9. [Deployment architecture](#6-deployment-architecture)
+10. [Integration architecture](#7-integration-architecture)
+11. [Technology stack](#8-technology-stack)
+12. [Scalability and performance](#9-scalability--performance)
+13. [High availability](#10-high-availability)
+
+---
+
+## Current architecture (shipped)
+
+The baseline codebase ships a small set of Go services, a Python library/CLI scaffold, and Kubernetes deployment manifests. There is no Web UI, Helm chart, Redis cache, gRPC layer, or Go controller in the repository today.
+
+### Shipped components
+
+| Component | Path | Role |
+|-----------|------|------|
+| Monitor service | `go/cmd/monitor` | Periodic K8s/TrueNAS scans, orphan detection, Prometheus metrics |
+| API server | `go/cmd/api-server` | REST API; partial route set — see [api-endpoints.md](api-endpoints.md) |
+| Orphan detector | `go/pkg/orphan/` | Correlates PV handles with TrueNAS volumes/snapshots |
+| Python library | `python/truenas_storage_monitor/` | Config, clients, monitor module |
+| Python CLI | `python/truenas_storage_monitor/cli.py` | Scaffold commands (demo output) |
+| K8s manifests | `deploy/kubernetes/` | Deployments, services, RBAC, ConfigMap |
+| Container images | `deploy/docker/Dockerfile.{monitor,api,cli}` | Built by CI and release workflow |
+
+### Current high-level diagram
+
+```mermaid
+graph TB
+    subgraph operators [Operators]
+        Curl[curl / kubectl]
+        CLI[Python CLI scaffold]
+    end
+
+    subgraph shipped [Shipped services]
+        API[Go API server]
+        Det[orphan.Detector]
+        Monitor[Go monitor service]
+        PyLib[Python library]
+    end
+
+    subgraph external [External systems]
+        K8S[Kubernetes API]
+        TN[TrueNAS API]
+        Prom[Prometheus optional]
+    end
+
+    Curl --> API
+    CLI --> PyLib
+    API --> Det
+    Det --> K8S
+    Det --> TN
+    Monitor --> K8S
+    Monitor --> TN
+    Monitor --> Prom
+    PyLib --> K8S
+    PyLib --> TN
+```
+
+The Python CLI does **not** call the Go API today. The API server uses its own `orphan.Detector` instance (not the monitor service). Monitor and API are separate processes that each talk to Kubernetes and TrueNAS independently.
+
+### Current data flow
+
+**Orphan detection (Go API — implemented):**
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as Go API server
+    participant Det as orphan.Detector
+    participant K8s
+    participant TrueNAS
+
+    Client->>API: GET /api/v1/orphans
+    API->>Det: DetectOrphans
+    par Kubernetes
+        Det->>K8s: List PVs PVCs snapshots
+        K8s-->>Det: Resources
+    and TrueNAS
+        Det->>TrueNAS: List volumes snapshots
+        TrueNAS-->>Det: Datasets
+    end
+    Det->>Det: Correlate handles
+    Det-->>API: Orphan list
+    API-->>Client: JSON response
+```
+
+**Monitor service (background):** loads config, runs scheduled scans via `go/pkg/monitor`, exports metrics when enabled.
+
+### Current technology stack
+
+| Component | Language | Framework / library | Status |
+|-----------|----------|---------------------|--------|
+| Monitor service | Go 1.24+ | client-go, Prometheus | Shipped |
+| API server | Go 1.24+ | Gin | Shipped (partial routes) |
+| Python library / CLI | Python 3.10+ | Click, Rich, kubernetes-client | Library shipped; CLI scaffold |
+| Deployment | YAML | `deploy/kubernetes/` | Shipped |
+| Helm chart | — | — | Planned (backlog) |
+| Web UI | — | — | Planned |
+| Go controller | — | — | Not in repo |
+
+Configuration schemas differ between Go (`kubernetes:`) and Python (`openshift:`). See [config-compatibility.md](config-compatibility.md).
+
+---
+
+# Target architecture (planned)
+
+> **Note:** Everything from section 1 onward describes **roadmap** components (Web UI, Controller, Redis, gRPC, ML analyzer, auto-remediation, multi-replica HA). These are **not production-ready** in the baseline repository. Diagrams are retained for planning.
 
 ## 1. Overview
 
@@ -298,7 +408,9 @@ classDiagram
 
 ## 4. Data Flow
 
-### 4.1 Orphan Detection Flow
+### 4.1 Orphan Detection Flow (target — CLI via API)
+
+> **Baseline:** Use `GET /api/v1/orphans` directly. The CLI→API→Monitor sequence below is planned integration, not current behavior.
 
 ```mermaid
 sequenceDiagram
@@ -667,14 +779,14 @@ sequenceDiagram
 
 ### 8.1 Languages & Frameworks
 
-| Component | Language | Framework | Purpose |
-|-----------|----------|-----------|---------|
-| Monitor Service | Go 1.21+ | client-go, controller-runtime | Performance-critical monitoring |
-| API Server | Go 1.21+ | Gin/Echo, gRPC | High-performance API |
-| Controller | Go 1.21+ | controller-runtime | Kubernetes native controller |
-| CLI Tool | Python 3.10+ | Click, Rich | User-friendly interface |
-| Analyzer | Python 3.10+ | Pandas, NumPy, Scikit-learn | Data analysis and ML |
-| Web UI | TypeScript | React, Material-UI | Modern dashboard |
+| Component | Language | Framework | Purpose | Status |
+|-----------|----------|-----------|---------|--------|
+| Monitor Service | Go 1.24+ | client-go | Performance-critical monitoring | Shipped |
+| API Server | Go 1.24+ | Gin | High-performance API | Shipped (partial) |
+| Controller | Go 1.24+ | controller-runtime | Kubernetes native controller | Planned (not in repo) |
+| CLI Tool | Python 3.10+ | Click, Rich | User-friendly interface | Scaffold |
+| Analyzer | Python 3.10+ | Pandas, NumPy | Data analysis | Planned |
+| Web UI | TypeScript | React, Material-UI | Modern dashboard | Planned |
 
 ### 8.2 Infrastructure & Tools
 

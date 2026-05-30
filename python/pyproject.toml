@@ -65,10 +65,10 @@ dev = [
 truenas-monitor = "truenas_storage_monitor.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/kubernetes-truenas-democratic-tool"
-Documentation = "https://yourusername.github.io/kubernetes-truenas-democratic-tool/"
-Issues = "https://github.com/yourusername/kubernetes-truenas-democratic-tool/issues"
-Repository = "https://github.com/yourusername/kubernetes-truenas-democratic-tool"
+Homepage = "https://github.com/tomazb/kubernetes-truenas-democratic-tool"
+Documentation = "https://github.com/tomazb/kubernetes-truenas-democratic-tool/tree/main/docs"
+Issues = "https://github.com/tomazb/kubernetes-truenas-democratic-tool/issues"
+Repository = "https://github.com/tomazb/kubernetes-truenas-democratic-tool"
 
 [tool.setuptools]
 packages = ["truenas_storage_monitor"]

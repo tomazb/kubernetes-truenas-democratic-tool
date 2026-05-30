@@ -95,7 +95,7 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Phase 3 - Operational readiness (PR 8 next)
+- **Current phase:** Phase 3 - Operational readiness (PR 8 in progress)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-30
 - **Last merged:** PR 7 test/CI alignment [#57](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/57) (2026-05-30)
@@ -288,7 +288,7 @@ Suggested worktree layout:
 
 ### PR 6: Reliability and Performance Guardrails
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** Medium
 - **Focus:** Improve resilience and fairness under load/failures.
 - **Branch/worktree:**
@@ -342,7 +342,7 @@ Suggested worktree layout:
 
 ### PR 8: Documentation Accuracy Refresh
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** Medium
 - **Focus:** Bring docs in sync with implemented reality.
 - **Branch/worktree:**
@@ -354,16 +354,19 @@ Suggested worktree layout:
   - `docs/ARCHITECTURE.md`
   - `CONTRIBUTING.md`
   - `config.yaml.example`
+  - `config.go.example`
+  - `docs/config-compatibility.md`
+  - `python/pyproject.toml`
 - **Implementation steps:**
-  - [ ] Remove stale/missing command/path references.
-  - [ ] Split architecture into current vs target state.
-  - [ ] Add config compatibility section (Go vs Python).
-  - [ ] Add endpoint maturity table/list.
-  - [ ] Remove placeholder external links.
+  - [x] Remove stale/missing command/path references.
+  - [x] Split architecture into current vs target state.
+  - [x] Add config compatibility section (Go vs Python).
+  - [x] Add endpoint maturity table/list.
+  - [x] Remove placeholder external links.
 - **Acceptance criteria:**
-  - [ ] New contributor can run documented paths without dead ends.
-  - [ ] Architecture clearly distinguishes shipped vs planned components.
-- **PR URL:** TBD
+  - [x] New contributor can run documented paths without dead ends.
+  - [x] Architecture clearly distinguishes shipped vs planned components.
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/58
 
 ## Phase 2+ Roadmap (Later Stages)
 
