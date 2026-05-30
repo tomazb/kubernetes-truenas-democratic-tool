@@ -225,6 +225,31 @@ func TestListOrphansHandler_InvalidAgeThreshold_Returns400(t *testing.T) {
 	require.Equal(t, "invalid age_threshold format", body["error"])
 }
 
+func TestListOrphansHandler_NonPositiveAgeThreshold_Returns400(t *testing.T) {
+	server := newTestServer(t, &stubK8sClient{}, &stubTruenasClient{})
+
+	rec := performRequest(server, http.MethodGet, "/api/v1/orphans?age_threshold=0")
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, "age_threshold must be greater than 0", body["error"])
+}
+
+func TestListOrphansHandler_DefaultAgeThresholdEchoes24h(t *testing.T) {
+	k8sStub := &stubK8sClient{
+		democraticPVs: []corev1.PersistentVolume{orphanedDemocraticPV("orphan-pv")},
+	}
+	server := newTestServer(t, k8sStub, &stubTruenasClient{})
+
+	rec := performRequest(server, http.MethodGet, "/api/v1/orphans")
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, "24h", body["age_threshold"])
+}
+
 func TestListOrphanedPVsHandler_ReturnsPVSubsetOnly(t *testing.T) {
 	k8sStub := &stubK8sClient{
 		democraticPVs: []corev1.PersistentVolume{orphanedDemocraticPV("orphan-pv")},

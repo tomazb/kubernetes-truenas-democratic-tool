@@ -140,7 +140,7 @@ make docker-build-all
 - [Remediation plan](docs/superpowers/plans/2026-05-28-repo-health-remediation.md) - Phased repo health work
 - [Backlog](docs/superpowers/backlog.md) - Canonical out-of-scope intake
 - [API endpoint maturity](docs/api-endpoints.md) - Implemented vs 501 routes for the Go API server
-- [API Reference](https://yourusername.github.io/kubernetes-truenas-democratic-tool/) - Planned external docs (placeholder)
+- API Reference (planned external docs): TBD
 
 ## Security
 

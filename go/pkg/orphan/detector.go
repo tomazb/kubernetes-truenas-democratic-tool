@@ -137,6 +137,46 @@ func (d *Detector) DetectOrphanedResources(ctx context.Context, namespace string
 	return result, nil
 }
 
+// WithAgeThreshold returns a detector copy that reuses clients and logger.
+func (d *Detector) WithAgeThreshold(ageThreshold time.Duration) *Detector {
+	return &Detector{
+		k8sClient:     d.k8sClient,
+		truenasClient: d.truenasClient,
+		logger:        d.logger,
+		config: Config{
+			AgeThreshold:      ageThreshold,
+			SnapshotRetention: d.config.SnapshotRetention,
+			DryRun:            d.config.DryRun,
+		},
+	}
+}
+
+// DetectOrphanedPVs performs PV-only orphan detection.
+func (d *Detector) DetectOrphanedPVs(ctx context.Context) (*DetectionResult, error) {
+	start := time.Now()
+
+	orphanedPVs, totalPVs, err := d.detectOrphanedPVs(ctx)
+	if err != nil {
+		d.logger.WithError(err).Error("Failed to detect orphaned PVs")
+		return nil, fmt.Errorf("failed to detect orphaned PVs: %w", err)
+	}
+
+	result := &DetectionResult{
+		Timestamp:   start,
+		OrphanedPVs: orphanedPVs,
+		TotalPVs:    totalPVs,
+		ScanDuration: time.Since(start),
+	}
+
+	d.logger.Info("PV orphan detection completed",
+		zap.Int("total_pvs", result.TotalPVs),
+		zap.Int("orphaned_pvs", len(result.OrphanedPVs)),
+		zap.String("age_threshold", d.config.AgeThreshold.String()),
+	)
+
+	return result, nil
+}
+
 // detectOrphanedPVs identifies PVs without corresponding TrueNAS volumes
 func (d *Detector) detectOrphanedPVs(ctx context.Context) ([]OrphanedResource, int, error) {
 	// Get all democratic-csi PVs from Kubernetes

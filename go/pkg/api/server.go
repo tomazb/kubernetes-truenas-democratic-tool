@@ -15,7 +15,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const defaultOrphanAgeThreshold = 24 * time.Hour
+const (
+	defaultOrphanAgeThreshold     = 24 * time.Hour
+	defaultOrphanAgeThresholdQuery = "24h"
+)
 
 // Server represents the API server
 type Server struct {
@@ -23,7 +26,7 @@ type Server struct {
 	k8sClient               k8s.Client
 	truenasClient           truenas.Client
 	logger                  *zap.Logger
-	orphanSnapshotRetention time.Duration
+	orphanDetector *orphan.Detector
 }
 
 // Config holds the server configuration
@@ -36,6 +39,18 @@ type Config struct {
 
 // NewServer creates a new API server with comprehensive middleware
 func NewServer(config Config) (*Server, error) {
+	if config.K8sClient == nil {
+		return nil, fmt.Errorf("k8sClient is required")
+	}
+	if config.TruenasClient == nil {
+		return nil, fmt.Errorf("truenasClient is required")
+	}
+
+	logger := config.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	// Set Gin mode
 	gin.SetMode(gin.ReleaseMode)
 
@@ -52,16 +67,25 @@ func NewServer(config Config) (*Server, error) {
 	router.Use(requestIDMiddleware())
 
 	// Add logging middleware
-	router.Use(loggingMiddleware(config.Logger))
+	router.Use(loggingMiddleware(logger))
 
 	// Add rate limiting middleware
 	router.Use(rateLimitMiddleware())
 
+	orphanDetector, err := orphan.NewDetector(config.K8sClient, config.TruenasClient, orphan.Config{
+		AgeThreshold:      defaultOrphanAgeThreshold,
+		SnapshotRetention: 30 * 24 * time.Hour,
+		DryRun:            true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create orphan detector: %w", err)
+	}
+
 	server := &Server{
-		k8sClient:               config.K8sClient,
-		truenasClient:           config.TruenasClient,
-		logger:                  config.Logger,
-		orphanSnapshotRetention: 30 * 24 * time.Hour,
+		k8sClient:      config.K8sClient,
+		truenasClient:  config.TruenasClient,
+		logger:         logger,
+		orphanDetector: orphanDetector,
 	}
 
 	// Setup routes
@@ -143,28 +167,33 @@ func (s *Server) setupRoutes(router *gin.Engine) {
 }
 
 func (s *Server) parseAgeThreshold(c *gin.Context) (time.Duration, string, bool) {
-	ageThreshold := c.DefaultQuery("age_threshold", defaultOrphanAgeThreshold.String())
-	parsed, err := time.ParseDuration(ageThreshold)
+	ageThresholdRaw, ok := c.GetQuery("age_threshold")
+	if !ok {
+		return defaultOrphanAgeThreshold, defaultOrphanAgeThresholdQuery, true
+	}
+
+	parsed, err := time.ParseDuration(ageThresholdRaw)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid age_threshold format",
 		})
-		return 0, ageThreshold, false
+		return 0, ageThresholdRaw, false
 	}
-	return parsed, ageThreshold, true
+	if parsed <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "age_threshold must be greater than 0",
+		})
+		return 0, ageThresholdRaw, false
+	}
+	return parsed, ageThresholdRaw, true
 }
 
 func (s *Server) runOrphanDetection(ctx context.Context, namespace string, ageThreshold time.Duration) (*orphan.DetectionResult, error) {
-	detector, err := orphan.NewDetector(s.k8sClient, s.truenasClient, orphan.Config{
-		AgeThreshold:      ageThreshold,
-		SnapshotRetention: s.orphanSnapshotRetention,
-		DryRun:            true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create orphan detector: %w", err)
-	}
+	return s.orphanDetector.WithAgeThreshold(ageThreshold).DetectOrphanedResources(ctx, namespace)
+}
 
-	return detector.DetectOrphanedResources(ctx, namespace)
+func (s *Server) runOrphanPVDetection(ctx context.Context, ageThreshold time.Duration) (*orphan.DetectionResult, error) {
+	return s.orphanDetector.WithAgeThreshold(ageThreshold).DetectOrphanedPVs(ctx)
 }
 
 func notImplemented(c *gin.Context, endpoint string) {
@@ -250,12 +279,12 @@ func (s *Server) listOrphansHandler(c *gin.Context) {
 
 // listOrphanedPVsHandler handles requests for orphaned PVs
 func (s *Server) listOrphanedPVsHandler(c *gin.Context) {
-	ageThreshold, _, ok := s.parseAgeThreshold(c)
+	ageThreshold, ageThresholdRaw, ok := s.parseAgeThreshold(c)
 	if !ok {
 		return
 	}
 
-	result, err := s.runOrphanDetection(c.Request.Context(), "", ageThreshold)
+	result, err := s.runOrphanPVDetection(c.Request.Context(), ageThreshold)
 	if err != nil {
 		s.logger.Error("Failed to detect orphaned PVs", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -266,6 +295,7 @@ func (s *Server) listOrphanedPVsHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"timestamp":     result.Timestamp,
+		"age_threshold": ageThresholdRaw,
 		"total_pvs":     result.TotalPVs,
 		"orphaned_pvs":  result.OrphanedPVs,
 		"total_orphans": len(result.OrphanedPVs),
@@ -473,9 +503,14 @@ func rateLimitMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		if !limiter.Allow() {
+			retryAfter := time.Second
+			if reservation := limiter.Reserve(); reservation.OK() {
+				retryAfter = reservation.Delay()
+				reservation.Cancel()
+			}
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":       "rate limit exceeded",
-				"retry_after": "60s",
+				"retry_after": retryAfter.String(),
 			})
 			c.Abort()
 			return
