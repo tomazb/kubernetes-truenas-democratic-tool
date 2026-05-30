@@ -12,7 +12,6 @@ import (
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/orphan"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -31,10 +30,11 @@ type Server struct {
 
 // Config holds the server configuration
 type Config struct {
-	Port          int
-	K8sClient     k8s.Client
-	TruenasClient truenas.Client
-	Logger        *zap.Logger
+	Port            int
+	K8sClient       k8s.Client
+	TruenasClient   truenas.Client
+	Logger          *zap.Logger
+	TrustedProxies  []string // empty/nil: do not trust X-Forwarded-For; set for ingress/LB CIDRs
 }
 
 // NewServer creates a new API server with comprehensive middleware
@@ -57,6 +57,11 @@ func NewServer(config Config) (*Server, error) {
 	// Create router
 	router := gin.New()
 
+	// Do not trust X-Forwarded-For unless explicit proxy CIDRs are configured.
+	if err := router.SetTrustedProxies(config.TrustedProxies); err != nil {
+		return nil, fmt.Errorf("invalid trusted proxies: %w", err)
+	}
+
 	// Add recovery middleware
 	router.Use(gin.Recovery())
 
@@ -69,8 +74,8 @@ func NewServer(config Config) (*Server, error) {
 	// Add logging middleware
 	router.Use(loggingMiddleware(logger))
 
-	// Add rate limiting middleware
-	router.Use(rateLimitMiddleware())
+	// Add per-client rate limiting middleware
+	router.Use(perClientRateLimitMiddleware(nil))
 
 	orphanDetector, err := orphan.NewDetector(config.K8sClient, config.TruenasClient, orphan.Config{
 		AgeThreshold:      defaultOrphanAgeThreshold,
@@ -496,25 +501,3 @@ func requestIDMiddleware() gin.HandlerFunc {
 	}
 }
 
-// rateLimitMiddleware implements rate limiting
-func rateLimitMiddleware() gin.HandlerFunc {
-	// Create a rate limiter: 100 requests per minute
-	limiter := rate.NewLimiter(rate.Every(time.Minute/100), 100)
-
-	return func(c *gin.Context) {
-		if !limiter.Allow() {
-			retryAfter := time.Second
-			if reservation := limiter.Reserve(); reservation.OK() {
-				retryAfter = reservation.Delay()
-				reservation.Cancel()
-			}
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "rate limit exceeded",
-				"retry_after": retryAfter.String(),
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
-	}
-}

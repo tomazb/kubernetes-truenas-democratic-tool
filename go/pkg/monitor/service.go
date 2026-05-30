@@ -102,9 +102,10 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.logger.WithComponent("monitor-service").Info("Starting monitoring service")
 
-	// Start metrics exporter
-	if err := s.metricsExporter.Start(); err != nil {
-		return fmt.Errorf("failed to start metrics exporter: %w", err)
+	if s.metricsExporter != nil {
+		if err := s.metricsExporter.Start(); err != nil {
+			return fmt.Errorf("failed to start metrics exporter: %w", err)
+		}
 	}
 
 	s.running = true
@@ -145,8 +146,10 @@ func (s *Service) Stop(ctx context.Context) error {
 		return ctx.Err()
 	}
 
-	// Stop metrics exporter
-	return s.metricsExporter.Stop()
+	if s.metricsExporter != nil {
+		return s.metricsExporter.Stop()
+	}
+	return nil
 }
 
 // GetLastScanResult returns the most recent scan result
@@ -246,6 +249,9 @@ func (s *Service) convertOrphanedResources(orphanResources []orphan.OrphanedReso
 
 // updateMetrics updates Prometheus metrics with scan results
 func (s *Service) updateMetrics(result *ScanResult) {
+	if s.metricsExporter == nil {
+		return
+	}
 	s.metricsExporter.SetOrphanedPVsCount(float64(len(result.OrphanedPVs)))
 	s.metricsExporter.SetOrphanedPVCsCount(float64(len(result.OrphanedPVCs)))
 	s.metricsExporter.SetOrphanedSnapshotsCount(float64(len(result.OrphanedSnapshots)))
