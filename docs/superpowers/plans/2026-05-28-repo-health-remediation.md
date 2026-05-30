@@ -366,7 +366,7 @@ Suggested worktree layout:
 - **Acceptance criteria:**
   - [x] New contributor can run documented paths without dead ends.
   - [x] Architecture clearly distinguishes shipped vs planned components.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/58
 
 ## Phase 2+ Roadmap (Later Stages)
 
