@@ -114,7 +114,8 @@ Milestone model in use:
 - All changes go through PRs (no direct commits to protected branches).
 - PR expectations:
   - Minimum 1 approval
-  - CI checks pass
+  - All required GitHub Actions CI checks green on the PR head commit (mandatory merge gate)
+  - CI checks pass (no failing, pending, or skipped required jobs without documented exception)
   - Coverage does not decrease
   - Security checks pass
   - DCO sign-off when required
@@ -200,6 +201,7 @@ A PR is only done when all items below are true:
 
 - Scope is limited to one plan item (or explicitly approved re-scope).
 - Tests for changed behavior exist and pass locally/CI.
+- All required GitHub Actions CI jobs are green on the PR head commit.
 - Existing tests remain green for touched areas.
 - Lint/type/security checks for touched stack pass.
 - Docs/config/examples are updated for user-visible changes.
@@ -226,7 +228,7 @@ PR comments and review threads are part of completion criteria and must be activ
 - Resolve PR threads only after:
   - code and tests reflect the agreed change, and
   - the response is posted on the PR.
-- Final merge gate: no unresolved actionable review threads.
+- Final merge gate: no unresolved actionable review threads and all required CI checks green.
 
 Scope rule:
 - The approved PR spec/design is the source of truth for scope.
@@ -261,6 +263,7 @@ Copy this checklist into every PR description:
 - [ ] **Scope:** Maps to one plan item (or approved exception documented).
 - [ ] **Correctness:** Added/updated tests for changed logic.
 - [ ] **Regression Safety:** Relevant existing tests pass.
+- [ ] **CI:** All required GitHub Actions checks green on the PR head commit.
 - [ ] **Security:** No insecure defaults introduced; secrets not exposed.
 - [ ] **Reliability:** Failure paths handled; retries/timeouts/backoff are sane.
 - [ ] **Performance:** No obvious unbounded loops/maps or avoidable N^2 regressions.
@@ -270,6 +273,8 @@ Copy this checklist into every PR description:
 - [ ] **Tracking:** Plan status/checklists and PR URL updated.
 
 ## Verification Gate (Before Merge)
+
+Local verification is required, but **green CI is also a mandatory merge gate**. Do not merge until required GitHub Actions jobs pass on the PR head commit (verify with `gh pr checks <number>` or the PR checks UI).
 
 Minimum verification for touched stack:
 
@@ -286,6 +291,10 @@ Minimum verification for touched stack:
   - `make security-scan`
 
 If a command is not applicable or temporarily skipped, document the reason in the PR.
+
+Before merge, confirm required CI is green:
+- `gh pr checks <pr-number>` shows no failing required checks
+- Re-run or fix CI after new commits; do not merge on stale green results from an older commit
 
 ## Common Commands
 
