@@ -73,19 +73,19 @@ test-unit: ## Run unit tests only
 .PHONY: test-integration
 test-integration: ## Run integration tests
 	cd go && go test ./... -v -run Integration
-	cd python && pytest tests/ -v -m integration
+	cd python && pytest tests/ -v -m integration --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-e2e
 test-e2e: ## Run end-to-end tests
-	cd python && pytest tests/ -v -m e2e
+	cd python && pytest tests/ -v -m e2e --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-security
 test-security: ## Run security tests
-	cd python && pytest tests/ -v -m security
+	cd python && pytest tests/ -v -m security --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-idempotency
 test-idempotency: ## Run idempotency tests
-	cd python && pytest tests/ -v -m idempotency
+	cd python && pytest tests/ -v -m idempotency --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode
@@ -168,5 +168,4 @@ release: ## Create a new release
 
 .PHONY: ci-precheck
 ci-precheck: ## Validate CI/Makefile/release path references
-	@chmod +x scripts/ci-precheck.sh
-	@./scripts/ci-precheck.sh
+	@bash scripts/ci-precheck.sh

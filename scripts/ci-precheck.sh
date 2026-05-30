@@ -48,15 +48,9 @@ EOF
 
 echo "== CI precheck: release container matrix mapping =="
 # release.yml uses component names that must map to existing Dockerfiles.
-declare -A RELEASE_DOCKERFILES=(
-  [monitor]=monitor
-  [api-server]=api
-  [cli]=cli
-)
-for component in "${!RELEASE_DOCKERFILES[@]}"; do
-  df="deploy/docker/Dockerfile.${RELEASE_DOCKERFILES[$component]}"
-  require_path "release-dockerfile:${component}" "$df"
-done
+require_path "release-dockerfile:monitor" "deploy/docker/Dockerfile.monitor"
+require_path "release-dockerfile:api-server" "deploy/docker/Dockerfile.api"
+require_path "release-dockerfile:cli" "deploy/docker/Dockerfile.cli"
 
 if [[ "$failures" -gt 0 ]]; then
   echo "ci-precheck failed: $failures missing path(s)" >&2

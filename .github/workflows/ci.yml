@@ -19,8 +19,7 @@ jobs:
 
       - name: Validate referenced paths exist
         run: |
-          chmod +x scripts/ci-precheck.sh
-          ./scripts/ci-precheck.sh
+          bash scripts/ci-precheck.sh
 
   # Go Tests
   go-tests:
