@@ -30,10 +30,11 @@ type Server struct {
 
 // Config holds the server configuration
 type Config struct {
-	Port          int
-	K8sClient     k8s.Client
-	TruenasClient truenas.Client
-	Logger        *zap.Logger
+	Port            int
+	K8sClient       k8s.Client
+	TruenasClient   truenas.Client
+	Logger          *zap.Logger
+	TrustedProxies  []string // empty/nil: do not trust X-Forwarded-For; set for ingress/LB CIDRs
 }
 
 // NewServer creates a new API server with comprehensive middleware
@@ -55,6 +56,11 @@ func NewServer(config Config) (*Server, error) {
 
 	// Create router
 	router := gin.New()
+
+	// Do not trust X-Forwarded-For unless explicit proxy CIDRs are configured.
+	if err := router.SetTrustedProxies(config.TrustedProxies); err != nil {
+		return nil, fmt.Errorf("invalid trusted proxies: %w", err)
+	}
 
 	// Add recovery middleware
 	router.Use(gin.Recovery())

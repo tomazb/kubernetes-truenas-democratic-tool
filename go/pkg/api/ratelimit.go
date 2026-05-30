@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -59,19 +60,28 @@ func (p *perClientRateLimiter) allow(clientKey string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.evictLocked(now)
-
 	entry, ok := p.clients[clientKey]
 	if !ok {
+		p.evictLocked(now)
 		entry = &clientLimiterEntry{
 			limiter:  rate.NewLimiter(p.limit, p.burst),
 			lastSeen: now,
 		}
 		p.clients[clientKey] = entry
+		if len(p.clients) > p.maxEntries {
+			p.evictLocked(now)
+		}
 	}
 
 	entry.lastSeen = now
 	return entry.limiter.Allow()
+}
+
+func (p *perClientRateLimiter) retryAfter() time.Duration {
+	if p.limit <= 0 {
+		return time.Second
+	}
+	return time.Duration(float64(time.Second) / float64(p.limit))
 }
 
 func (p *perClientRateLimiter) evictLocked(now time.Time) {
@@ -85,7 +95,6 @@ func (p *perClientRateLimiter) evictLocked(now time.Time) {
 		return
 	}
 
-	// Drop oldest entries when over capacity.
 	for len(p.clients) > p.maxEntries {
 		var oldestKey string
 		var oldestTime time.Time
@@ -110,21 +119,32 @@ func (p *perClientRateLimiter) clientCount() int {
 	return len(p.clients)
 }
 
+func clientRateLimitKey(c *gin.Context) string {
+	// ClientIP() honors engine trusted-proxy settings configured in NewServer.
+	if ip := c.ClientIP(); ip != "" {
+		return ip
+	}
+	return "unknown"
+}
+
 func perClientRateLimitMiddleware(limiter *perClientRateLimiter) gin.HandlerFunc {
 	if limiter == nil {
 		limiter = newPerClientRateLimiter(defaultRequestsPerMinute, defaultRateBurst, defaultClientIdleTTL, defaultMaxClientEntries)
 	}
 
 	return func(c *gin.Context) {
-		clientKey := c.ClientIP()
-		if clientKey == "" {
-			clientKey = "unknown"
-		}
+		clientKey := clientRateLimitKey(c)
 
 		if !limiter.allow(clientKey) {
+			retryAfter := limiter.retryAfter()
+			retryAfterSec := int(retryAfter.Seconds())
+			if retryAfterSec < 1 {
+				retryAfterSec = 1
+			}
+			c.Header("Retry-After", fmt.Sprintf("%d", retryAfterSec))
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":       "rate limit exceeded",
-				"retry_after": (time.Minute / time.Duration(defaultRequestsPerMinute)).String(),
+				"retry_after": retryAfter.String(),
 			})
 			c.Abort()
 			return

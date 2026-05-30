@@ -30,7 +30,7 @@ Runtime paths can fail or degrade under load:
 
 | Area | Current | Target |
 |------|---------|--------|
-| API rate limit | Global limiter | Per `ClientIP()` limiter with TTL eviction |
+| API rate limit | Global limiter | Per client key with TTL eviction (RemoteAddr unless trusted proxies configured) |
 | Limiter map | N/A (single limiter) | Evict idle clients; cap map growth |
 | Monitor metrics | Panic if exporter nil | Skip metric updates when nil |
 | K8s retries | Retry all errors | Retry timeouts, 429, 5xx, transient net errors only |
@@ -42,10 +42,23 @@ Runtime paths can fail or degrade under load:
 3. Guard `metricsExporter` in `monitor/service.go` Start/Stop/updateMetrics.
 4. Table-driven tests in `*_test.go` files.
 
+## Risk, failure modes, and mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| Limiter map growth under many unique client keys | Idle TTL eviction + max entry cap with oldest-first trim |
+| Hot-path eviction overhead | Evict only when inserting a new client key |
+| Spoofed `X-Forwarded-For` bypass | `SetTrustedProxies(nil)` by default; optional `TrustedProxies` CIDR list for ingress |
+| Wrong `retry_after` for custom limiter rates | Derive from limiter `rate.Limit` + set HTTP `Retry-After` header |
+| Nil metrics exporter panic | Guard Start/Stop/updateMetrics when exporter unset |
+| Missing retries on transient K8s errors | `isTransientK8sError` table-tested; permanent errors fail fast |
+| Over-aggressive retry suppression | Monitor 429/5xx retry metrics in ops backlog; tune predicate if needed |
+
 ## Test strategy
 
 ```bash
 cd go && go test ./pkg/api/... ./pkg/k8s/... ./pkg/monitor/... -v
+cd go && go vet ./...
 make go-test && make go-lint
 ```
 

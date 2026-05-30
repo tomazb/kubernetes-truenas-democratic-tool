@@ -26,6 +26,27 @@ func TestPerClientRateLimiter_IsolatesClients(t *testing.T) {
 	}
 }
 
+func TestPerClientRateLimiter_RetryAfterUsesConfiguredRate(t *testing.T) {
+	limiter := newPerClientRateLimiter(120, 2, time.Minute, 128)
+	got := limiter.retryAfter()
+	want := 500 * time.Millisecond
+	if got != want {
+		t.Fatalf("retryAfter() = %v, want %v", got, want)
+	}
+}
+
+func TestPerClientRateLimiter_EnforcesMaxEntries(t *testing.T) {
+	limiter := newPerClientRateLimiter(60, 1, time.Hour, 2)
+
+	limiter.allow("a")
+	limiter.allow("b")
+	limiter.allow("c")
+
+	if limiter.clientCount() > 2 {
+		t.Fatalf("client count = %d, want <= 2", limiter.clientCount())
+	}
+}
+
 func TestPerClientRateLimiter_EvictsIdleClients(t *testing.T) {
 	limiter := newPerClientRateLimiter(60, 1, 10*time.Millisecond, 128)
 
