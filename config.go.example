@@ -39,10 +39,5 @@ logging:
   development: false
   encoding: json
 
-security:
-  tls_min_version: "1.3"
-  require_auth: true
-  allowed_origins:
-    - "*"
-  rate_limit_rps: 100
-  session_timeout: 24h
+# security: block omitted — keys are parsed by go/pkg/config but not enforced by
+# the shipped API server or monitor. See docs/config-compatibility.md.

@@ -73,6 +73,8 @@ Binaries are written to `bin/monitor` and `bin/api-server`.
 Use the Go config schema (`kubernetes:` key). See [config compatibility](docs/config-compatibility.md) and [config.go.example](config.go.example).
 
 ```bash
+export TRUENAS_USERNAME=admin
+export TRUENAS_PASSWORD='change-me'
 ./bin/api-server -config config.go.example -port 8080
 curl -s http://localhost:8080/health
 curl -s http://localhost:8080/api/v1/orphans

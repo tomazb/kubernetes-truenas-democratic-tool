@@ -401,5 +401,5 @@ Suggested worktree layout:
 - [ ] Complete PRs 4 and 5 (API honesty + detector fidelity).
 - [x] Complete PR 6 (reliability/performance guardrails).
 - [x] Complete PR 7 (CI trust).
-- [x] Complete PR 8 (docs accuracy).
+- [ ] Complete PR 8 (docs accuracy).
 - [ ] Start Stage 2+ initiatives after baseline PRs are merged.

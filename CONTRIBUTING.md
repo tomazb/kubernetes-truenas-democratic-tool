@@ -103,7 +103,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 Example:
 
-```
+```text
 feat(api): add orphan snapshot route
 
 - Implement GET /api/v1/orphans/snapshots

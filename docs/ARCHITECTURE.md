@@ -50,6 +50,7 @@ graph TB
 
     subgraph shipped [Shipped services]
         API[Go API server]
+        Det[orphan.Detector]
         Monitor[Go monitor service]
         PyLib[Python library]
     end
@@ -62,17 +63,17 @@ graph TB
 
     Curl --> API
     CLI --> PyLib
-    API --> Monitor
+    API --> Det
+    Det --> K8S
+    Det --> TN
     Monitor --> K8S
     Monitor --> TN
     Monitor --> Prom
-    API --> K8S
-    API --> TN
     PyLib --> K8S
     PyLib --> TN
 ```
 
-The Python CLI does **not** call the Go API today; both stacks talk to Kubernetes and TrueNAS independently when fully wired.
+The Python CLI does **not** call the Go API today. The API server uses its own `orphan.Detector` instance (not the monitor service). Monitor and API are separate processes that each talk to Kubernetes and TrueNAS independently.
 
 ### Current data flow
 
