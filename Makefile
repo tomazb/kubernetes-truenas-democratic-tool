@@ -17,7 +17,6 @@ go-deps: ## Install Go dependencies
 go-build: go-deps ## Build all Go binaries
 	cd go && go build -o ../bin/monitor ./cmd/monitor
 	cd go && go build -o ../bin/api-server ./cmd/api-server
-	cd go && go build -o ../bin/controller ./cmd/controller
 
 .PHONY: go-test
 go-test: ## Run Go tests
@@ -46,7 +45,7 @@ python-build: ## Build Python package
 
 .PHONY: python-test
 python-test: ## Run Python tests
-	cd python && pytest tests/ -v --cov=. --cov-report=html --cov-report=term-missing
+	cd python && pytest tests/ -v --cov=truenas_storage_monitor --cov-report=html --cov-report=term-missing --cov-fail-under=70
 
 .PHONY: python-lint
 python-lint: ## Run Python linters
@@ -74,19 +73,19 @@ test-unit: ## Run unit tests only
 .PHONY: test-integration
 test-integration: ## Run integration tests
 	cd go && go test ./... -v -run Integration
-	cd python && pytest tests/integration/ -v
+	cd python && pytest tests/ -v -m integration --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-e2e
 test-e2e: ## Run end-to-end tests
-	pytest tests/e2e/ -v
+	cd python && pytest tests/ -v -m e2e --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-security
 test-security: ## Run security tests
-	pytest tests/security/ -v
+	cd python && pytest tests/ -v -m security --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-idempotency
 test-idempotency: ## Run idempotency tests
-	pytest tests/idempotency/ -v --run-twice
+	cd python && pytest tests/ -v -m idempotency --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode
@@ -128,21 +127,6 @@ k8s-deploy: ## Deploy to Kubernetes
 k8s-delete: ## Delete from Kubernetes
 	kubectl delete -f deploy/kubernetes/
 
-.PHONY: helm-install
-helm-install: ## Install using Helm
-	helm install truenas-monitor deploy/helm/truenas-monitor \
-		--namespace storage-monitoring \
-		--create-namespace
-
-.PHONY: helm-upgrade
-helm-upgrade: ## Upgrade Helm deployment
-	helm upgrade truenas-monitor deploy/helm/truenas-monitor \
-		--namespace storage-monitoring
-
-.PHONY: helm-uninstall
-helm-uninstall: ## Uninstall Helm deployment
-	helm uninstall truenas-monitor --namespace storage-monitoring
-
 # Development targets
 .PHONY: dev-setup
 dev-setup: ## Set up development environment
@@ -167,16 +151,6 @@ clean: ## Clean build artifacts
 	rm -rf .mypy_cache/
 	cd go && go clean -cache
 
-# Documentation targets
-.PHONY: docs
-docs: ## Generate documentation
-	cd python && sphinx-build -b html docs/ docs/_build/html
-	cd go && godoc -http=:6060
-
-.PHONY: docs-serve
-docs-serve: ## Serve documentation locally
-	cd python && sphinx-autobuild docs/ docs/_build/html
-
 # Release targets
 .PHONY: version
 version: ## Show current version
@@ -191,3 +165,7 @@ release: ## Create a new release
 	git commit -m "Release v$$version"; \
 	git tag -a v$$version -m "Release v$$version"; \
 	echo "Release v$$version created. Push with: git push origin main --tags"
+
+.PHONY: ci-precheck
+ci-precheck: ## Validate CI/Makefile/release path references
+	@bash scripts/ci-precheck.sh

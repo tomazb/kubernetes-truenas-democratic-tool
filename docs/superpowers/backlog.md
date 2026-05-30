@@ -65,7 +65,24 @@ Copy this template for each new item:
 - Acceptance criteria:
   - [ ] `pytest` coverage for `truenas_storage_monitor` is >=90% locally.
   - [ ] `.github/workflows/ci.yml` uses `--cov-fail-under=90`.
-  - [ ] `python/pyproject.toml` `fail_under` aligned with CI.
+  - [x] `python/pyproject.toml` `fail_under` aligned with CI (interim 70%).
+
+### BL-20260530-helm-chart-release
+- Status: Proposed
+- Priority: P2
+- Milestone: M4
+- Source: PR 7 CI alignment audit
+- Opened by: agent
+- Date: 2026-05-30
+- In scope of current PR: No
+- Rationale: Release workflow previously referenced `deploy/helm/truenas-monitor` and `upload_url` from a deprecated release action; no Helm chart exists in the repository today.
+- Proposed target: Stage 3 product depth or dedicated packaging PR
+- Related spec(s): `docs/superpowers/specs/2026-05-28-pr-7-test-ci-alignment-design.md`
+- Related PR(s)/issue(s): PR 7
+- Description: Add Helm chart under `deploy/helm/truenas-monitor` and restore chart publish step in release workflow once chart assets are maintained.
+- Acceptance criteria:
+  - [ ] Helm chart validates with `helm lint`.
+  - [ ] Release workflow packages and attaches chart artifact on tag push.
 
 ### BL-20260528-backlog-bootstrap
 - Status: Done

@@ -95,11 +95,11 @@ Suggested worktree layout:
 
 ## Overall Status
 
-- **Current phase:** Phase 3 - Operational readiness (PR 6 in progress)
+- **Current phase:** Phase 3 - Operational readiness (PR 7 in progress)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-30
-- **Last merged:** PR 5 detector validation [#55](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/55) (2026-05-30)
-- **Next up:** PR 6 - Reliability and performance guardrails
+- **Last merged:** PR 6 reliability guardrails [#56](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/56) (2026-05-30)
+- **Next up:** PR 7 - Test and CI/release trustworthiness
 
 ## Milestones
 
@@ -314,7 +314,7 @@ Suggested worktree layout:
 
 ### PR 7: Test and CI/Release Trustworthiness
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** High
 - **Focus:** Align tests/workflows with actual repo structure.
 - **Branch/worktree:**
@@ -322,21 +322,23 @@ Suggested worktree layout:
   - Worktree: `.worktrees/pr-7-test-ci-alignment`
 - **Spec/design:** `docs/superpowers/specs/2026-05-28-pr-7-test-ci-alignment-design.md`
 - **Files (expected):**
+  - `scripts/ci-precheck.sh`
   - `go/pkg/monitor/service_test.go`
   - `go/pkg/k8s/client_test.go`
   - `.github/workflows/ci.yml`
   - `.github/workflows/release.yml`
   - `Makefile`
+  - `python/pyproject.toml`
 - **Implementation steps:**
-  - [ ] Fix stale test assumptions and signature drift.
-  - [ ] Remove or implement missing artifact references in workflows/make targets.
-  - [ ] Fix release workflow output wiring issues.
-  - [ ] Add precheck validating referenced paths/targets exist.
+  - [x] Fix stale test assumptions and signature drift.
+  - [x] Remove or implement missing artifact references in workflows/make targets.
+  - [x] Fix release workflow output wiring issues.
+  - [x] Add precheck validating referenced paths/targets exist.
 - **Acceptance criteria:**
   - [ ] CI is green against current code layout.
   - [ ] Release workflow references valid outputs/artifacts.
   - [ ] Tests fail on regressions, not stale wiring.
-- **PR URL:** TBD
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/57
 
 ### PR 8: Documentation Accuracy Refresh
 
@@ -394,6 +396,6 @@ Suggested worktree layout:
 - [ ] Complete PR 1 first (security baseline).
 - [ ] Complete PRs 2 and 3 (Python correctness/hygiene).
 - [ ] Complete PRs 4 and 5 (API honesty + detector fidelity).
-- [ ] Complete PR 6 (reliability/performance guardrails).
+- [x] Complete PR 6 (reliability/performance guardrails).
 - [ ] Complete PRs 7 and 8 (CI trust + docs accuracy).
 - [ ] Start Stage 2+ initiatives after baseline PRs are merged.
