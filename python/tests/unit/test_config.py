@@ -272,6 +272,14 @@ class TestConfigClass:
         """Invalid duration strings raise ConfigurationError."""
         with pytest.raises(ConfigurationError, match="Invalid duration"):
             parse_duration("not-a-duration")
+        with pytest.raises(ConfigurationError, match="Invalid duration"):
+            parse_duration(True)
+        with pytest.raises(ConfigurationError, match="Invalid duration"):
+            parse_duration(False)
+        with pytest.raises(ConfigurationError, match="explicit unit"):
+            parse_duration(24)
+        with pytest.raises(ConfigurationError, match="explicit unit"):
+            parse_duration("24")
 
     def test_config_threshold_properties(self):
         """Config exposes orphan and snapshot retention as timedeltas."""

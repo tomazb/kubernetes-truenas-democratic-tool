@@ -113,10 +113,11 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	orphanThreshold, snapshotRetention := monitorService.DetectorThresholds()
 	logger.Info("Monitor service started successfully",
 		zap.Duration("scan_interval", cfg.Monitor.ScanInterval),
-		zap.Duration("orphan_threshold", cfg.Monitor.OrphanThreshold),
-		zap.Duration("snapshot_retention", cfg.Monitor.SnapshotRetention),
+		zap.Duration("orphan_threshold", orphanThreshold),
+		zap.Duration("snapshot_retention", snapshotRetention),
 	)
 	<-sigChan
 

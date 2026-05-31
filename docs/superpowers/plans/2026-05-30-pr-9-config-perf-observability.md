@@ -12,7 +12,7 @@
 
 ---
 
-### Task 1: Go config wiring (monitor + API)
+## Task 1: Go config wiring (monitor + API)
 
 **Files:** `go/pkg/monitor/service.go`, `go/cmd/monitor/main.go`, `go/pkg/api/server.go`, `go/cmd/api-server/main.go`
 
@@ -21,7 +21,7 @@
 - [ ] Wire from `config.Load` in both mains
 - [ ] Add `snapshot_retention` to orphan API JSON response
 
-### Task 2: Go metrics histograms
+## Task 2: Go metrics histograms
 
 **Files:** `go/pkg/metrics/exporter.go`, `go/pkg/monitor/service.go`, `go/pkg/orphan/detector.go`
 
@@ -29,14 +29,14 @@
 - [ ] Add `PhaseTimings` to `DetectionResult`; time list calls in detector
 - [ ] Monitor `updateMetrics` observes histograms
 
-### Task 3: Go tests
+## Task 3: Go tests
 
 **Files:** `go/pkg/monitor/service_test.go`, `go/pkg/api/server_test.go`, `go/pkg/metrics/exporter_test.go`
 
 - [ ] Test configured thresholds used by monitor/API
 - [ ] Test histogram observation
 
-### Task 4: Python config + observability
+## Task 4: Python config + observability
 
 **Files:** `python/truenas_storage_monitor/config.py`, `observability.py`, `monitor.py`
 
@@ -44,14 +44,14 @@
 - [ ] Config properties for thresholds
 - [ ] `ScanTimer` context manager; wire monitor lists
 
-### Task 5: Python tests + docs
+## Task 5: Python tests + docs
 
 **Files:** `python/tests/unit/test_config.py`, `test_monitor.py`, `test_observability.py`, docs
 
 - [ ] Duration parsing tests; monitor config default tests; scan duration > 0
 - [ ] Update `docs/config-compatibility.md`, `docs/ARCHITECTURE.md`
 
-### Task 6: Verification
+## Task 6: Verification
 
 ```bash
 cd go && go test ./pkg/monitor/... ./pkg/api/... ./pkg/metrics/... ./pkg/orphan/... -v

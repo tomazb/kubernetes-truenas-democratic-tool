@@ -40,18 +40,25 @@ func TestNewService_UsesConfiguredThresholds(t *testing.T) {
 		t.Fatalf("logger: %v", err)
 	}
 
+	wantOrphan := 48 * time.Hour
+	wantRetention := 168 * time.Hour
+
 	svc, err := NewService(Config{
 		Logger:            logger,
 		ScanInterval:      time.Minute,
-		OrphanThreshold:   48 * time.Hour,
-		SnapshotRetention: 168 * time.Hour,
+		OrphanThreshold:   wantOrphan,
+		SnapshotRetention: wantRetention,
 	})
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
 
-	if svc.orphanDetector == nil {
-		t.Fatal("expected orphan detector")
+	gotOrphan, gotRetention := svc.DetectorThresholds()
+	if gotOrphan != wantOrphan {
+		t.Fatalf("orphan threshold: got %v want %v", gotOrphan, wantOrphan)
+	}
+	if gotRetention != wantRetention {
+		t.Fatalf("snapshot retention: got %v want %v", gotRetention, wantRetention)
 	}
 }
 
@@ -79,16 +86,32 @@ func TestService_UpdateMetrics_RecordsHistogram(t *testing.T) {
 		t.Fatalf("gather: %v", err)
 	}
 
-	var histFound bool
+	var scanHistFound bool
+	var phaseHistFound bool
 	for _, family := range families {
-		if family.GetName() == "truenas_monitor_scan_duration_histogram_seconds" {
-			histFound = true
+		switch family.GetName() {
+		case "truenas_monitor_scan_duration_histogram_seconds":
+			scanHistFound = true
 			if family.GetMetric()[0].GetHistogram().GetSampleCount() != 1 {
-				t.Fatalf("expected one histogram sample")
+				t.Fatalf("expected one scan histogram sample")
+			}
+		case "truenas_monitor_list_duration_seconds":
+			for _, metric := range family.GetMetric() {
+				for _, label := range metric.GetLabel() {
+					if label.GetName() == "phase" && label.GetValue() == "k8s_pvs" {
+						phaseHistFound = true
+						if metric.GetHistogram().GetSampleCount() != 1 {
+							t.Fatalf("expected one phase histogram sample")
+						}
+					}
+				}
 			}
 		}
 	}
-	if !histFound {
+	if !scanHistFound {
 		t.Fatal("scan histogram not found")
+	}
+	if !phaseHistFound {
+		t.Fatal("phase histogram sample for k8s_pvs not found")
 	}
 }

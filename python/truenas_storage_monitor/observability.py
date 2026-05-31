@@ -12,9 +12,11 @@ from typing import Dict, Generator, Optional, Protocol
 class ScanMetricsProtocol(Protocol):
     """Protocol for optional Prometheus scan metrics."""
 
-    def observe_scan(self, duration: float) -> None: ...
+    def observe_scan(self, duration: float) -> None:
+        """Record total scan duration in seconds."""
 
-    def observe_list_phase(self, phase: str, duration: float) -> None: ...
+    def observe_list_phase(self, phase: str, duration: float) -> None:
+        """Record list phase duration in seconds."""
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,14 @@ class ScanObservability:
         self.phase_timings.clear()
         self._scan_start = time.perf_counter()
         if self.metrics_enabled:
-            self._metrics = _get_metrics_registry()
+            try:
+                self._metrics = _get_metrics_registry()
+            except ImportError:
+                logger.warning(
+                    "prometheus_client is not installed; disabling scan metrics for this run"
+                )
+                self.metrics_enabled = False
+                self._metrics = None
 
     def finish_scan(self) -> float:
         """Return total scan duration in seconds."""

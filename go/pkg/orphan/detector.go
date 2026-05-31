@@ -139,6 +139,11 @@ func (d *Detector) DetectOrphanedResources(ctx context.Context, namespace string
 	return result, nil
 }
 
+// Thresholds returns the detector's configured age and snapshot retention thresholds.
+func (d *Detector) Thresholds() (time.Duration, time.Duration) {
+	return d.config.AgeThreshold, d.config.SnapshotRetention
+}
+
 // WithAgeThreshold returns a detector copy that reuses clients and logger.
 func (d *Detector) WithAgeThreshold(ageThreshold time.Duration) *Detector {
 	return &Detector{
@@ -252,23 +257,23 @@ func (d *Detector) detectOrphanedPVs(ctx context.Context, timings map[string]tim
 
 // detectOrphanedPVCs identifies unbound PVCs older than threshold
 func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string, timings map[string]time.Duration) ([]OrphanedResource, int, error) {
-	pvcPhaseStart := time.Now()
-	defer func() {
-		if timings != nil {
-			timings["k8s_pvcs"] = time.Since(pvcPhaseStart)
-		}
-	}()
+	var listDuration time.Duration
 
-	// Get unbound PVCs
+	unboundStart := time.Now()
 	unboundPVCs, err := d.k8sClient.ListUnboundPersistentVolumeClaims(ctx, namespace)
+	listDuration += time.Since(unboundStart)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list unbound PVCs: %w", err)
 	}
 
-	// Get total PVCs for reporting
+	allStart := time.Now()
 	allPVCs, err := d.k8sClient.ListPersistentVolumeClaims(ctx, namespace)
+	listDuration += time.Since(allStart)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list all PVCs: %w", err)
+	}
+	if timings != nil {
+		timings["k8s_pvcs"] = listDuration
 	}
 
 	var orphaned []OrphanedResource

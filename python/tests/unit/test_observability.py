@@ -26,3 +26,18 @@ class TestScanObservability:
         with obs.phase("truenas_datasets"):
             pass
         obs.finish_scan()
+
+    def test_begin_scan_disables_metrics_when_prometheus_missing(self, monkeypatch):
+        """Missing prometheus_client disables metrics instead of crashing."""
+
+        def raise_import_error():
+            raise ImportError("prometheus_client not installed")
+
+        monkeypatch.setattr(
+            "truenas_storage_monitor.observability._get_metrics_registry",
+            raise_import_error,
+        )
+        obs = ScanObservability(metrics_enabled=True)
+        obs.begin_scan()
+        assert obs.metrics_enabled is False
+        assert obs._metrics is None

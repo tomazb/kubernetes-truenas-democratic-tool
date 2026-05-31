@@ -182,12 +182,14 @@ _DURATION_PATTERN = re.compile(r"^(\d+(?:\.\d+)?)([smhdw])?$", re.IGNORECASE)
 
 def parse_duration(value: Any) -> timedelta:
     """Parse duration strings such as 24h, 720h, 30d, or 30m into timedelta."""
+    if isinstance(value, bool):
+        raise ConfigurationError(f"Invalid duration value: {value!r}")
     if isinstance(value, timedelta):
         return value
     if isinstance(value, (int, float)):
-        if value <= 0:
-            raise ConfigurationError(f"Duration must be > 0: {value!r}")
-        return timedelta(hours=float(value))
+        raise ConfigurationError(
+            f"Duration must include an explicit unit (e.g. 24h, 30d): {value!r}"
+        )
     if not isinstance(value, str):
         raise ConfigurationError(f"Invalid duration value: {value!r}")
 
@@ -197,7 +199,11 @@ def parse_duration(value: Any) -> timedelta:
         raise ConfigurationError(f"Invalid duration format: {value!r}")
 
     amount = float(match.group(1))
-    unit = match.group(2) or "h"
+    unit = match.group(2)
+    if not unit:
+        raise ConfigurationError(
+            f"Duration must include an explicit unit (e.g. 24h, 30d): {value!r}"
+        )
     if amount <= 0:
         raise ConfigurationError(f"Duration must be > 0: {value!r}")
 
@@ -319,7 +325,7 @@ def get_default_config() -> Dict[str, Any]:
             "listen": "0.0.0.0:8080",
         },
         "metrics": {
-            "enabled": True,
+            "enabled": False,
             "port": 9090,
             "path": "/metrics",
         },

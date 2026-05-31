@@ -170,6 +170,14 @@ func (s *Service) GetLastScanResult() *ScanResult {
 	return s.lastScanResult
 }
 
+// DetectorThresholds returns the effective orphan detection thresholds.
+func (s *Service) DetectorThresholds() (time.Duration, time.Duration) {
+	if s.orphanDetector == nil {
+		return 0, 0
+	}
+	return s.orphanDetector.Thresholds()
+}
+
 // monitorLoop runs the main monitoring loop
 func (s *Service) monitorLoop(ctx context.Context) {
 	defer s.wg.Done()
