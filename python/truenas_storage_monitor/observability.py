@@ -6,7 +6,16 @@ import logging
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Dict, Generator, Optional
+from typing import Dict, Generator, Optional, Protocol
+
+
+class ScanMetricsProtocol(Protocol):
+    """Protocol for optional Prometheus scan metrics."""
+
+    def observe_scan(self, duration: float) -> None: ...
+
+    def observe_list_phase(self, phase: str, duration: float) -> None: ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +27,7 @@ class ScanObservability:
     metrics_enabled: bool = False
     phase_timings: Dict[str, float] = field(default_factory=dict)
     _scan_start: Optional[float] = field(default=None, init=False, repr=False)
-    _metrics: Optional[object] = field(default=None, init=False, repr=False)
+    _metrics: Optional[ScanMetricsProtocol] = field(default=None, init=False, repr=False)
 
     def begin_scan(self) -> None:
         """Mark the start of a full orphan scan."""
@@ -50,7 +59,7 @@ class ScanObservability:
             logger.info("Scan phase completed", extra={"phase": name, "duration_seconds": elapsed})
 
 
-def _get_metrics_registry():
+def _get_metrics_registry() -> ScanMetricsProtocol:
     """Lazy-load optional Prometheus metrics."""
     from .prometheus_metrics import ScanMetrics
 
