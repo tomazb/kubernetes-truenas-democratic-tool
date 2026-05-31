@@ -73,10 +73,13 @@ func GetOrLoad[T any](c *Cache, operation, key string, loader func() (T, error))
 		return loader()
 	}
 
-	if value, ok := c.get(operation, key); ok {
+	if value, ok := c.get(key); ok {
 		typed, ok := value.(T)
 		if !ok {
 			return zero, fmt.Errorf("inventory cache type mismatch for key %q", key)
+		}
+		if c.stats != nil {
+			c.stats(operation, true)
 		}
 		return typed, nil
 	}
@@ -93,7 +96,7 @@ func GetOrLoad[T any](c *Cache, operation, key string, loader func() (T, error))
 	return loaded, nil
 }
 
-func (c *Cache) get(operation, key string) (any, bool) {
+func (c *Cache) get(key string) (any, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -102,14 +105,11 @@ func (c *Cache) get(operation, key string) (any, bool) {
 		return nil, false
 	}
 
-	if c.now().After(item.expiresAt) {
+	if !c.now().Before(item.expiresAt) {
 		delete(c.entries, key)
 		return nil, false
 	}
 
-	if c.stats != nil {
-		c.stats(operation, true)
-	}
 	return item.value, true
 }
 

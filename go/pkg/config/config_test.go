@@ -231,8 +231,91 @@ func TestValidate(t *testing.T) {
 					AllowedOrigins: []string{"*"},
 					SessionTimeout: 24 * time.Hour,
 				},
+				Performance: PerformanceConfig{
+					Cache: CacheConfig{
+						Enabled: true,
+						TTL:     5 * time.Minute,
+						MaxSize: 1000,
+					},
+				},
 			},
 			wantErr: false,
+		},
+		{
+			name: "cache ttl too short",
+			config: &Config{
+				TrueNAS: TrueNASConfig{
+					URL:      "https://truenas.example.com",
+					Username: "admin",
+					Password: "secret123",
+					Timeout:  "30s",
+				},
+				Monitor: MonitorConfig{
+					ScanInterval:    5 * time.Minute,
+					OrphanThreshold: 24 * time.Hour,
+				},
+				Metrics: MetricsConfig{
+					Port: 8080,
+					Path: "/metrics",
+				},
+				Logging: LoggingConfig{
+					Level:    "info",
+					Encoding: "json",
+				},
+				Security: SecurityConfig{
+					TLSMinVersion:  "1.3",
+					RateLimitRPS:   100,
+					AllowedOrigins: []string{"*"},
+					SessionTimeout: 24 * time.Hour,
+				},
+				Performance: PerformanceConfig{
+					Cache: CacheConfig{
+						Enabled: true,
+						TTL:     500 * time.Millisecond,
+						MaxSize: 1000,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "performance.cache.ttl must be at least 1 second",
+		},
+		{
+			name: "cache max size invalid when enabled",
+			config: &Config{
+				TrueNAS: TrueNASConfig{
+					URL:      "https://truenas.example.com",
+					Username: "admin",
+					Password: "secret123",
+					Timeout:  "30s",
+				},
+				Monitor: MonitorConfig{
+					ScanInterval:    5 * time.Minute,
+					OrphanThreshold: 24 * time.Hour,
+				},
+				Metrics: MetricsConfig{
+					Port: 8080,
+					Path: "/metrics",
+				},
+				Logging: LoggingConfig{
+					Level:    "info",
+					Encoding: "json",
+				},
+				Security: SecurityConfig{
+					TLSMinVersion:  "1.3",
+					RateLimitRPS:   100,
+					AllowedOrigins: []string{"*"},
+					SessionTimeout: 24 * time.Hour,
+				},
+				Performance: PerformanceConfig{
+					Cache: CacheConfig{
+						Enabled: true,
+						TTL:     5 * time.Minute,
+						MaxSize: -1,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "performance.cache.max_size must be at least 1",
 		},
 		{
 			name: "missing TrueNAS URL",
@@ -397,7 +480,29 @@ func TestValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.validate()
+			cfg := tt.config
+			if tt.name == "cache ttl too short" {
+				err := cfg.validatePerformanceCache()
+				if tt.wantErr {
+					assert.Error(t, err)
+					if tt.errMsg != "" {
+						assert.Contains(t, err.Error(), tt.errMsg)
+					}
+				} else {
+					assert.NoError(t, err)
+				}
+				return
+			}
+
+			if tt.name == "cache max size invalid when enabled" {
+				err := cfg.validatePerformanceCache()
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+				return
+			}
+
+			cfg.applyPerformanceDefaults()
+			err := cfg.validate()
 
 			if tt.wantErr {
 				assert.Error(t, err)

@@ -30,29 +30,45 @@ func WrapK8sClient(base k8s.Client, cache *Cache) k8s.Client {
 }
 
 func (c *cachedK8sClient) ListPersistentVolumes(ctx context.Context) ([]corev1.PersistentVolume, error) {
-	return GetOrLoad(c.cache, opK8sAllPVs, opK8sAllPVs, func() ([]corev1.PersistentVolume, error) {
+	res, err := GetOrLoad(c.cache, opK8sAllPVs, opK8sAllPVs, func() ([]corev1.PersistentVolume, error) {
 		return c.base.ListPersistentVolumes(ctx)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return cloneSlice(res), nil
 }
 
 func (c *cachedK8sClient) ListPersistentVolumeClaims(ctx context.Context, namespace string) ([]corev1.PersistentVolumeClaim, error) {
 	key := NamespaceKey(opK8sPVCs, namespace)
-	return GetOrLoad(c.cache, opK8sPVCs, key, func() ([]corev1.PersistentVolumeClaim, error) {
+	res, err := GetOrLoad(c.cache, opK8sPVCs, key, func() ([]corev1.PersistentVolumeClaim, error) {
 		return c.base.ListPersistentVolumeClaims(ctx, namespace)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return cloneSlice(res), nil
 }
 
 func (c *cachedK8sClient) ListVolumeSnapshots(ctx context.Context, namespace string) ([]snapshotv1.VolumeSnapshot, error) {
 	key := NamespaceKey(opK8sSnaps, namespace)
-	return GetOrLoad(c.cache, opK8sSnaps, key, func() ([]snapshotv1.VolumeSnapshot, error) {
+	res, err := GetOrLoad(c.cache, opK8sSnaps, key, func() ([]snapshotv1.VolumeSnapshot, error) {
 		return c.base.ListVolumeSnapshots(ctx, namespace)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return cloneSlice(res), nil
 }
 
 func (c *cachedK8sClient) ListDemocraticCSIPersistentVolumes(ctx context.Context) ([]corev1.PersistentVolume, error) {
-	return GetOrLoad(c.cache, opK8sPVs, opK8sPVs, func() ([]corev1.PersistentVolume, error) {
+	res, err := GetOrLoad(c.cache, opK8sPVs, opK8sPVs, func() ([]corev1.PersistentVolume, error) {
 		return c.base.ListDemocraticCSIPersistentVolumes(ctx)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return cloneSlice(res), nil
 }
 
 func (c *cachedK8sClient) ListUnboundPersistentVolumeClaims(ctx context.Context, namespace string) ([]corev1.PersistentVolumeClaim, error) {

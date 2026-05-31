@@ -25,15 +25,23 @@ func WrapTrueNASClient(base truenas.Client, cache *Cache) truenas.Client {
 }
 
 func (c *cachedTrueNASClient) ListVolumes(ctx context.Context) ([]truenas.Volume, error) {
-	return GetOrLoad(c.cache, opTrueNASDatasets, opTrueNASDatasets, func() ([]truenas.Volume, error) {
+	res, err := GetOrLoad(c.cache, opTrueNASDatasets, opTrueNASDatasets, func() ([]truenas.Volume, error) {
 		return c.base.ListVolumes(ctx)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return cloneSlice(res), nil
 }
 
 func (c *cachedTrueNASClient) ListSnapshots(ctx context.Context) ([]truenas.Snapshot, error) {
-	return GetOrLoad(c.cache, opTrueNASSnapshots, opTrueNASSnapshots, func() ([]truenas.Snapshot, error) {
+	res, err := GetOrLoad(c.cache, opTrueNASSnapshots, opTrueNASSnapshots, func() ([]truenas.Snapshot, error) {
 		return c.base.ListSnapshots(ctx)
 	})
+	if err != nil {
+		return nil, err
+	}
+	return cloneSlice(res), nil
 }
 
 func (c *cachedTrueNASClient) ListPools(ctx context.Context) ([]truenas.Pool, error) {

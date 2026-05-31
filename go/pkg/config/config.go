@@ -149,6 +149,10 @@ func Load(path string) (*Config, error) {
 		if err := yaml.Unmarshal([]byte(expanded), config); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
 		}
+
+		if err := config.validatePerformanceCache(); err != nil {
+			return nil, fmt.Errorf("invalid configuration: %w", err)
+		}
 	}
 
 	config.applyPerformanceDefaults()
@@ -161,6 +165,16 @@ func Load(path string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func (c *Config) validatePerformanceCache() error {
+	if c.Performance.Cache.TTL != 0 && c.Performance.Cache.TTL < time.Second {
+		return fmt.Errorf("performance.cache.ttl must be at least 1 second")
+	}
+	if c.Performance.Cache.MaxSize < 0 {
+		return fmt.Errorf("performance.cache.max_size must be at least 1")
+	}
+	return nil
 }
 
 func (c *Config) applyPerformanceDefaults() {
@@ -201,8 +215,6 @@ func expandEnvVars(input string) string {
 
 // validate checks if the configuration is valid
 func (c *Config) validate() error {
-	c.applyPerformanceDefaults()
-
 	// TrueNAS validation
 	if c.TrueNAS.URL == "" {
 		return fmt.Errorf("truenas.url is required")

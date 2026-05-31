@@ -85,6 +85,11 @@ func main() {
 		Port:    cfg.Metrics.Port,
 		Path:    cfg.Metrics.Path,
 	})
+	if cfg.Metrics.Enabled {
+		if err := metricsExporter.Start(); err != nil {
+			logger.Fatal("Failed to start metrics exporter", zap.Error(err))
+		}
+	}
 	inventoryCache := inventorycache.NewFromConfig(cfg.Performance, metricsExporter)
 	k8sClient = inventorycache.WrapK8sClient(k8sClient, inventoryCache)
 	truenasClient = inventorycache.WrapTrueNASClient(truenasClient, inventoryCache)
@@ -128,6 +133,12 @@ func main() {
 	if err := apiServer.Stop(shutdownCtx); err != nil {
 		logger.Error("Error during shutdown", zap.Error(err))
 		os.Exit(1)
+	}
+
+	if cfg.Metrics.Enabled {
+		if err := metricsExporter.Stop(); err != nil {
+			logger.Error("Error stopping metrics exporter", zap.Error(err))
+		}
 	}
 
 	logger.Info("API server stopped successfully")
