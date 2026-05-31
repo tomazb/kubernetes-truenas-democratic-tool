@@ -31,6 +31,7 @@ class TestMonitor:
         config.orphan_threshold = timedelta(hours=24)
         config.snapshot_retention = timedelta(days=30)
         config.metrics_enabled = False
+        config.cache_enabled = False
         return config
 
     @pytest.fixture
@@ -56,8 +57,40 @@ class TestMonitor:
             assert monitor.config == mock_config
             mock_config.k8s_config.assert_called_once()
             mock_config.truenas_config.assert_called_once()
-            mock_k8s.assert_called_once_with(mock_config.k8s_config.return_value)
-            mock_truenas.assert_called_once_with(mock_config.truenas_config.return_value)
+            mock_k8s.assert_called_once_with(
+                mock_config.k8s_config.return_value, inventory_cache=None
+            )
+            mock_truenas.assert_called_once_with(
+                mock_config.truenas_config.return_value, inventory_cache=None
+            )
+
+    def test_monitor_initialization_with_cache_enabled(self, mock_config):
+        """Monitor shares one InventoryCache between clients when enabled."""
+        mock_config.cache_enabled = True
+        mock_config.cache_ttl = timedelta(minutes=5)
+        mock_config.cache_max_size = 1000
+
+        with (
+            patch("truenas_storage_monitor.monitor.K8sClient") as mock_k8s_cls,
+            patch("truenas_storage_monitor.monitor.TrueNASClient") as mock_truenas_cls,
+            patch("truenas_storage_monitor.monitor.InventoryCache") as mock_cache_cls,
+        ):
+            cache_instance = Mock()
+            mock_cache_cls.return_value = cache_instance
+            monitor = Monitor(mock_config)
+
+            mock_cache_cls.assert_called_once_with(
+                ttl=timedelta(minutes=5),
+                max_size=1000,
+                enabled=True,
+            )
+            mock_k8s_cls.assert_called_once_with(
+                mock_config.k8s_config.return_value, inventory_cache=cache_instance
+            )
+            mock_truenas_cls.assert_called_once_with(
+                mock_config.truenas_config.return_value, inventory_cache=cache_instance
+            )
+            assert monitor.config == mock_config
 
     def test_find_orphaned_resources_success(self, monitor):
         """Test successful orphaned resource detection."""

@@ -27,6 +27,7 @@ Go services and the Python library/CLI use **different YAML schemas**. A single 
 | TrueNAS timeout | `truenas.timeout` as duration string (`30s`) | `truenas.timeout` as integer seconds or string with `s` suffix (e.g. `30`, `30s`) |
 | Slack alerts | `alerts.slack.webhook` | `alerts.slack.webhook_url` |
 | Metrics | `metrics.enabled`, `metrics.port`, `metrics.path` — Go monitor exports gauges + histograms | `metrics.enabled` in defaults enables optional Python Prometheus scan metrics; structured phase timing logs always emitted |
+| Inventory cache | `performance.cache.enabled`, `performance.cache.ttl`, `performance.cache.max_size` — **wired** in Go monitor and API | `performance.cache.*` — **wired** in Python clients when `performance.cache.enabled` is true (defaults enable 5m TTL) |
 | Logging | `logging.level`, `logging.encoding` | `logging.level`, `logging.format` in example only |
 | API server listen/TLS | Not in Go config file (CLI flags) | `api:` block in Python example is **planned**, not read today |
 | API auth / security block | `security:` keys parsed in Go config but **not enforced** by shipped API server | Not applicable |
@@ -75,4 +76,4 @@ truenas:
 
 ## Planned sections (Python example only)
 
-Blocks in `config.yaml.example` under `reporting`, `api`, `performance`, and `features` are **roadmap placeholders**. The baseline Python library does not load them. Do not assume they affect runtime behavior.
+Blocks in `config.yaml.example` under `reporting`, `api`, and `features` are **roadmap placeholders**. The baseline Python library does not load them. Do not assume they affect runtime behavior.

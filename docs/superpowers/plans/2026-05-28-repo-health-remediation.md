@@ -97,9 +97,9 @@ Suggested worktree layout:
 
 - **Current phase:** Stage 2 — In Progress (M4 scalability foundation)
 - **Primary owner:** TBD
-- **Last updated:** 2026-05-30
-- **Last merged:** PR 8 documentation accuracy [#58](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/58) (2026-05-30)
-- **Next up:** PR 9 — Config wiring + performance observability
+- **Last updated:** 2026-05-31
+- **Last merged:** PR 9 config wiring + performance observability [#59](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/59) (2026-05-31, `5829adf`)
+- **Next up:** PR 10 — TTL inventory cache
 
 ## Milestones
 
@@ -377,16 +377,18 @@ Suggested worktree layout:
 - [ ] Introduce incremental/watch-based detection where practical (PR 11).
 - [ ] Add caching/TTL for expensive list operations (PR 10).
 - [ ] Define and track performance budgets (scan time, API p95, memory) (PR 12).
-- [ ] Wire config thresholds and performance observability baseline (PR 9).
+- [x] Wire config thresholds and performance observability baseline (PR 9).
 
 #### PR 9: Config Wiring and Performance Observability
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** Low
 - **Focus:** Wire YAML orphan/snapshot thresholds into Go monitor/API and Python monitor; add Prometheus histograms and Python scan timing.
 - **Branch/worktree:**
   - Branch: `feature/pr-9-config-perf-observability`
-  - Worktree: `.worktrees/pr-9-config-perf-observability`
+  - Worktree: `.worktrees/pr-9-config-perf-observability` (removed)
+- **Merged:** 2026-05-31
+- **Merge commit:** `5829adf`
 - **Spec/design:** `docs/superpowers/specs/2026-05-30-pr-9-config-perf-observability-design.md`
 - **Implementation plan:** `docs/superpowers/plans/2026-05-30-pr-9-config-perf-observability.md`
 - **Files (expected):**
@@ -404,16 +406,19 @@ Suggested worktree layout:
 
 #### PR 10: TTL Inventory Cache
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** Medium
 - **Focus:** In-process TTL cache for expensive K8s/TrueNAS list operations; dedupe duplicate PVC lists in detector.
 - **Branch/worktree:**
   - Branch: `feature/pr-10-inventory-cache`
   - Worktree: `.worktrees/pr-10-inventory-cache`
+- **Spec/design:** `docs/superpowers/specs/2026-05-31-pr-10-inventory-cache-design.md`
+- **Implementation plan:** `docs/superpowers/plans/2026-05-31-pr-10-inventory-cache.md`
 - **Depends on:** PR 9 (metrics baseline)
 - **Acceptance criteria:**
-  - [ ] Cache hit reduces external list call count within TTL window.
-  - [ ] TTL expiry triggers refresh; tests cover hit/miss/expiry.
+  - [x] Cache hit reduces external list call count within TTL window.
+  - [x] TTL expiry triggers refresh; tests cover hit/miss/expiry.
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/60
 
 #### PR 11: Watch-Based Incremental Reconcile
 
@@ -468,7 +473,7 @@ Suggested worktree layout:
 - [x] Complete PR 7 (CI trust).
 - [x] Complete PR 8 (docs accuracy).
 - [x] Start Stage 2+ initiatives after baseline PRs are merged.
-- [ ] Complete PR 9 (config wiring + performance observability).
+- [x] Complete PR 9 (config wiring + performance observability).
 - [ ] Complete PR 10 (TTL inventory cache).
 - [ ] Complete PR 11 (watch/incremental reconcile).
 - [ ] Complete PR 12 (performance budgets).

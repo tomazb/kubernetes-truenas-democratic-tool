@@ -257,23 +257,20 @@ func (d *Detector) detectOrphanedPVs(ctx context.Context, timings map[string]tim
 
 // detectOrphanedPVCs identifies unbound PVCs older than threshold
 func (d *Detector) detectOrphanedPVCs(ctx context.Context, namespace string, timings map[string]time.Duration) ([]OrphanedResource, int, error) {
-	var listDuration time.Duration
-
-	unboundStart := time.Now()
-	unboundPVCs, err := d.k8sClient.ListUnboundPersistentVolumeClaims(ctx, namespace)
-	listDuration += time.Since(unboundStart)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list unbound PVCs: %w", err)
-	}
-
-	allStart := time.Now()
+	listStart := time.Now()
 	allPVCs, err := d.k8sClient.ListPersistentVolumeClaims(ctx, namespace)
-	listDuration += time.Since(allStart)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list all PVCs: %w", err)
-	}
 	if timings != nil {
-		timings["k8s_pvcs"] = listDuration
+		timings["k8s_pvcs"] = time.Since(listStart)
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list PVCs: %w", err)
+	}
+
+	var unboundPVCs []corev1.PersistentVolumeClaim
+	for _, pvc := range allPVCs {
+		if pvc.Status.Phase == corev1.ClaimPending {
+			unboundPVCs = append(unboundPVCs, pvc)
+		}
 	}
 
 	var orphaned []OrphanedResource

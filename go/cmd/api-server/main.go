@@ -11,7 +11,9 @@ import (
 
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/api"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/config"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/inventorycache"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
 )
@@ -78,6 +80,20 @@ func main() {
 		logger.Fatal("Failed to initialize TrueNAS client", zap.Error(err))
 	}
 
+	metricsExporter := metrics.NewExporter(metrics.Config{
+		Enabled: cfg.Metrics.Enabled,
+		Port:    cfg.Metrics.Port,
+		Path:    cfg.Metrics.Path,
+	})
+	if cfg.Metrics.Enabled {
+		if err := metricsExporter.Start(); err != nil {
+			logger.Fatal("Failed to start metrics exporter", zap.Error(err))
+		}
+	}
+	inventoryCache := inventorycache.NewFromConfig(cfg.Performance, metricsExporter)
+	k8sClient = inventorycache.WrapK8sClient(k8sClient, inventoryCache)
+	truenasClient = inventorycache.WrapTrueNASClient(truenasClient, inventoryCache)
+
 	// Initialize API server
 	apiServer, err := api.NewServer(api.Config{
 		Port:              *port,
@@ -117,6 +133,12 @@ func main() {
 	if err := apiServer.Stop(shutdownCtx); err != nil {
 		logger.Error("Error during shutdown", zap.Error(err))
 		os.Exit(1)
+	}
+
+	if cfg.Metrics.Enabled {
+		if err := metricsExporter.Stop(); err != nil {
+			logger.Error("Error stopping metrics exporter", zap.Error(err))
+		}
 	}
 
 	logger.Info("API server stopped successfully")
