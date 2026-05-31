@@ -236,6 +236,28 @@ func TestListOrphansHandler_NonPositiveAgeThreshold_Returns400(t *testing.T) {
 	require.Equal(t, "age_threshold must be greater than 0", body["error"])
 }
 
+func TestListOrphansHandler_DefaultAgeThresholdFromConfig(t *testing.T) {
+	k8sStub := &stubK8sClient{}
+	truenasStub := &stubTruenasClient{}
+	server, err := NewServer(Config{
+		Port:              0,
+		K8sClient:         k8sStub,
+		TruenasClient:     truenasStub,
+		Logger:            zap.NewNop(),
+		OrphanThreshold:   48 * time.Hour,
+		SnapshotRetention: 168 * time.Hour,
+	})
+	require.NoError(t, err)
+
+	rec := performRequest(server, http.MethodGet, "/api/v1/orphans")
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, "48h", body["age_threshold"])
+	require.Equal(t, "168h", body["snapshot_retention"])
+}
+
 func TestListOrphansHandler_DefaultAgeThresholdEchoes24h(t *testing.T) {
 	k8sStub := &stubK8sClient{
 		democraticPVs: []corev1.PersistentVolume{orphanedDemocraticPV("orphan-pv")},

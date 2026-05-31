@@ -13,6 +13,7 @@ from truenas_storage_monitor.config import (
     normalize_cluster_config,
     parse_truenas_url,
     parse_timeout_seconds,
+    parse_duration,
 )
 from truenas_storage_monitor.exceptions import ConfigurationError
 
@@ -258,3 +259,38 @@ class TestConfigClass:
         """Timeout strings with s suffix parse to integers."""
         assert parse_timeout_seconds(30) == 30
         assert parse_timeout_seconds("30s") == 30
+
+    def test_parse_duration_hours_and_days(self):
+        """Duration strings parse to timedeltas."""
+        from datetime import timedelta
+
+        assert parse_duration("24h") == timedelta(hours=24)
+        assert parse_duration("720h") == timedelta(hours=720)
+        assert parse_duration("30d") == timedelta(days=30)
+
+    def test_parse_duration_rejects_invalid(self):
+        """Invalid duration strings raise ConfigurationError."""
+        with pytest.raises(ConfigurationError, match="Invalid duration"):
+            parse_duration("not-a-duration")
+        with pytest.raises(ConfigurationError, match="Invalid duration"):
+            parse_duration(True)
+        with pytest.raises(ConfigurationError, match="Invalid duration"):
+            parse_duration(False)
+        with pytest.raises(ConfigurationError, match="explicit unit"):
+            parse_duration(24)
+        with pytest.raises(ConfigurationError, match="explicit unit"):
+            parse_duration("24")
+
+    def test_config_threshold_properties(self):
+        """Config exposes orphan and snapshot retention as timedeltas."""
+        from datetime import timedelta
+
+        config = Config.__new__(Config)
+        config.data = {
+            "monitoring": {
+                "orphan_threshold": "48h",
+                "snapshot": {"max_age": "7d"},
+            }
+        }
+        assert config.orphan_threshold == timedelta(hours=48)
+        assert config.snapshot_retention == timedelta(days=7)

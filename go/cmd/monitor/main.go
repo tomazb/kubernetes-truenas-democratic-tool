@@ -88,11 +88,13 @@ func main() {
 
 	// Initialize monitor service
 	monitorService, err := monitor.NewService(monitor.Config{
-		K8sClient:       k8sClient,
-		TruenasClient:   truenasClient,
-		MetricsExporter: metricsExporter,
-		Logger:          logger,
-		ScanInterval:    cfg.Monitor.ScanInterval,
+		K8sClient:         k8sClient,
+		TruenasClient:     truenasClient,
+		MetricsExporter:   metricsExporter,
+		Logger:            logger,
+		ScanInterval:      cfg.Monitor.ScanInterval,
+		OrphanThreshold:   cfg.Monitor.OrphanThreshold,
+		SnapshotRetention: cfg.Monitor.SnapshotRetention,
 	})
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to create monitor service")
@@ -111,7 +113,12 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	logger.Info("Monitor service started successfully")
+	orphanThreshold, snapshotRetention := monitorService.DetectorThresholds()
+	logger.Info("Monitor service started successfully",
+		zap.Duration("scan_interval", cfg.Monitor.ScanInterval),
+		zap.Duration("orphan_threshold", orphanThreshold),
+		zap.Duration("snapshot_retention", snapshotRetention),
+	)
 	<-sigChan
 
 	logger.Info("Shutting down monitor service...")

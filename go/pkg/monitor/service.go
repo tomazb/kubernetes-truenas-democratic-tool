@@ -34,11 +34,13 @@ type Service struct {
 
 // Config holds the service configuration
 type Config struct {
-	K8sClient       k8s.Client
-	TruenasClient   truenas.Client
-	MetricsExporter *metrics.Exporter
-	Logger          *logging.Logger
-	ScanInterval    time.Duration
+	K8sClient         k8s.Client
+	TruenasClient     truenas.Client
+	MetricsExporter   *metrics.Exporter
+	Logger            *logging.Logger
+	ScanInterval      time.Duration
+	OrphanThreshold   time.Duration
+	SnapshotRetention time.Duration
 }
 
 // OrphanedResource represents an orphaned resource
@@ -66,13 +68,22 @@ type ScanResult struct {
 
 // NewService creates a new monitoring service
 func NewService(config Config) (*Service, error) {
+	orphanThreshold := config.OrphanThreshold
+	if orphanThreshold == 0 {
+		orphanThreshold = 24 * time.Hour
+	}
+	snapshotRetention := config.SnapshotRetention
+	if snapshotRetention == 0 {
+		snapshotRetention = 30 * 24 * time.Hour
+	}
+
 	// Initialize orphan detector
 	orphanDetector, err := orphan.NewDetector(
 		config.K8sClient,
 		config.TruenasClient,
 		orphan.Config{
-			AgeThreshold:      24 * time.Hour,
-			SnapshotRetention: 30 * 24 * time.Hour,
+			AgeThreshold:      orphanThreshold,
+			SnapshotRetention: snapshotRetention,
 			DryRun:            false,
 		},
 	)
@@ -159,6 +170,14 @@ func (s *Service) GetLastScanResult() *ScanResult {
 	return s.lastScanResult
 }
 
+// DetectorThresholds returns the effective orphan detection thresholds.
+func (s *Service) DetectorThresholds() (time.Duration, time.Duration) {
+	if s.orphanDetector == nil {
+		return 0, 0
+	}
+	return s.orphanDetector.Thresholds()
+}
+
 // monitorLoop runs the main monitoring loop
 func (s *Service) monitorLoop(ctx context.Context) {
 	defer s.wg.Done()
@@ -212,7 +231,7 @@ func (s *Service) performScan(ctx context.Context) {
 	s.mu.Unlock()
 
 	// Update metrics
-	s.updateMetrics(result)
+	s.updateMetrics(result, detectionResult.PhaseTimings)
 
 	// Log scan results using structured logging
 	s.logger.Info("Monitoring scan completed",
@@ -248,14 +267,19 @@ func (s *Service) convertOrphanedResources(orphanResources []orphan.OrphanedReso
 }
 
 // updateMetrics updates Prometheus metrics with scan results
-func (s *Service) updateMetrics(result *ScanResult) {
+func (s *Service) updateMetrics(result *ScanResult, phaseTimings map[string]time.Duration) {
 	if s.metricsExporter == nil {
 		return
 	}
 	s.metricsExporter.SetOrphanedPVsCount(float64(len(result.OrphanedPVs)))
 	s.metricsExporter.SetOrphanedPVCsCount(float64(len(result.OrphanedPVCs)))
 	s.metricsExporter.SetOrphanedSnapshotsCount(float64(len(result.OrphanedSnapshots)))
-	s.metricsExporter.SetScanDuration(result.ScanDuration.Seconds())
+	scanSeconds := result.ScanDuration.Seconds()
+	s.metricsExporter.SetScanDuration(scanSeconds)
+	s.metricsExporter.ObserveScanDuration(scanSeconds)
+	for phase, duration := range phaseTimings {
+		s.metricsExporter.ObserveListPhaseDuration(phase, duration.Seconds())
+	}
 	s.metricsExporter.SetTotalPVs(float64(result.TotalPVs))
 	s.metricsExporter.SetTotalPVCs(float64(result.TotalPVCs))
 	s.metricsExporter.SetTotalSnapshots(float64(result.TotalSnapshots))

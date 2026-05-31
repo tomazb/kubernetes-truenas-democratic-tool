@@ -13,6 +13,7 @@ from .k8s_client import (
 from .truenas_client import TrueNASClient, VolumeInfo, SnapshotInfo
 from .config import Config
 from .exceptions import TrueNASMonitorError
+from .observability import ScanObservability
 from .time_utils import ensure_utc, resource_age, utc_now
 
 logger = logging.getLogger(__name__)
@@ -28,24 +29,47 @@ class Monitor:
         self.truenas_client = TrueNASClient(config.truenas_config())
 
     def find_orphaned_resources(
-        self, namespace: Optional[str] = None, age_threshold_hours: int = 24
+        self,
+        namespace: Optional[str] = None,
+        age_threshold_hours: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Find orphaned storage resources."""
-        logger.info(f"Scanning for orphaned resources (threshold: {age_threshold_hours}h)")
+        if age_threshold_hours is None:
+            age_threshold = self.config.orphan_threshold
+        else:
+            age_threshold = timedelta(hours=age_threshold_hours)
+        snapshot_retention = self.config.snapshot_retention
+
+        logger.info(
+            "Scanning for orphaned resources",
+            extra={
+                "age_threshold_hours": age_threshold.total_seconds() / 3600,
+                "snapshot_retention_hours": snapshot_retention.total_seconds() / 3600,
+            },
+        )
+
+        obs = ScanObservability(metrics_enabled=self.config.metrics_enabled)
+        obs.begin_scan()
 
         try:
-            k8s_pvs = self.k8s_client.get_persistent_volumes()
-            k8s_pvcs = self.k8s_client.get_persistent_volume_claims(namespace)
-            k8s_snapshots = self.k8s_client.get_volume_snapshots(namespace)
+            with obs.phase("k8s_pvs"):
+                k8s_pvs = self.k8s_client.get_persistent_volumes()
+            with obs.phase("k8s_pvcs"):
+                k8s_pvcs = self.k8s_client.get_persistent_volume_claims(namespace)
+            with obs.phase("k8s_snapshots"):
+                k8s_snapshots = self.k8s_client.get_volume_snapshots(namespace)
+            with obs.phase("truenas_datasets"):
+                truenas_volumes = self.truenas_client.get_volumes()
+            with obs.phase("truenas_snapshots"):
+                truenas_snapshots = self.truenas_client.get_snapshots()
 
-            truenas_volumes = self.truenas_client.get_volumes()
-            truenas_snapshots = self.truenas_client.get_snapshots()
-
-            orphaned_pvs = self._find_orphaned_pvs(k8s_pvs, truenas_volumes, age_threshold_hours)
-            orphaned_pvcs = self._find_orphaned_pvcs(k8s_pvcs, age_threshold_hours)
+            orphaned_pvs = self._find_orphaned_pvs(k8s_pvs, truenas_volumes, age_threshold)
+            orphaned_pvcs = self._find_orphaned_pvcs(k8s_pvcs, age_threshold)
             orphaned_snapshots = self._find_orphaned_snapshots(
-                k8s_snapshots, truenas_snapshots, age_threshold_hours
+                k8s_snapshots, truenas_snapshots, age_threshold, snapshot_retention
             )
+
+            scan_duration = obs.finish_scan()
 
             return {
                 "timestamp": utc_now().isoformat(),
@@ -55,7 +79,10 @@ class Monitor:
                 "total_pvs": len(k8s_pvs),
                 "total_pvcs": len(k8s_pvcs),
                 "total_snapshots": len(k8s_snapshots),
-                "scan_duration": 0,  # TODO: Implement timing
+                "scan_duration": scan_duration,
+                "phase_timings": obs.phase_timings,
+                "age_threshold_hours": age_threshold.total_seconds() / 3600,
+                "snapshot_retention_hours": snapshot_retention.total_seconds() / 3600,
             }
 
         except Exception as e:
@@ -66,11 +93,11 @@ class Monitor:
         self,
         k8s_pvs: List[PersistentVolumeInfo],
         truenas_volumes: List[VolumeInfo],
-        age_threshold_hours: int,
+        age_threshold: timedelta,
     ) -> List[Dict]:
         """Find PVs without corresponding TrueNAS volumes."""
         orphaned = []
-        threshold = utc_now() - timedelta(hours=age_threshold_hours)
+        threshold = utc_now() - age_threshold
 
         for pv in k8s_pvs:
             if not self._is_democratic_csi_pv(pv):
@@ -98,11 +125,11 @@ class Monitor:
         return orphaned
 
     def _find_orphaned_pvcs(
-        self, k8s_pvcs: List[PersistentVolumeClaimInfo], age_threshold_hours: int
+        self, k8s_pvcs: List[PersistentVolumeClaimInfo], age_threshold: timedelta
     ) -> List[Dict]:
         """Find unbound PVCs older than threshold."""
         orphaned = []
-        threshold = utc_now() - timedelta(hours=age_threshold_hours)
+        threshold = utc_now() - age_threshold
 
         for pvc in k8s_pvcs:
             if pvc.phase != "Pending" or pvc.creation_time is None:
@@ -128,11 +155,13 @@ class Monitor:
         self,
         k8s_snapshots: List[VolumeSnapshotInfo],
         truenas_snapshots: List[SnapshotInfo],
-        age_threshold_hours: int,
+        age_threshold: timedelta,
+        snapshot_retention: timedelta,
     ) -> List[Dict]:
-        """Find snapshots without corresponding TrueNAS snapshots."""
+        """Find snapshots without corresponding resources."""
         orphaned = []
-        threshold = utc_now() - timedelta(hours=age_threshold_hours)
+        threshold = utc_now() - age_threshold
+        retention_threshold = utc_now() - snapshot_retention
 
         for snapshot in k8s_snapshots:
             if snapshot.creation_time is None:
@@ -153,7 +182,36 @@ class Monitor:
                     }
                 )
 
+        for truenas_snapshot in truenas_snapshots:
+            created = (
+                ensure_utc(truenas_snapshot.creation_time)
+                if truenas_snapshot.creation_time
+                else None
+            )
+            if created is None or created > retention_threshold:
+                continue
+            if not self._has_corresponding_k8s_snapshot(truenas_snapshot, k8s_snapshots):
+                orphaned.append(
+                    {
+                        "name": truenas_snapshot.name,
+                        "age": resource_age(created),
+                        "reason": "Old TrueNAS snapshot without corresponding VolumeSnapshot",
+                    }
+                )
+
         return orphaned
+
+    def _has_corresponding_k8s_snapshot(
+        self, truenas_snapshot: SnapshotInfo, k8s_snapshots: List[VolumeSnapshotInfo]
+    ) -> bool:
+        """Check if TrueNAS snapshot correlates with a K8s VolumeSnapshot."""
+        names = {truenas_snapshot.name, truenas_snapshot.full_name}
+        for snapshot in k8s_snapshots:
+            if any(
+                name and (snapshot.name in name or name in snapshot.name) for name in names if name
+            ):
+                return True
+        return False
 
     def _is_democratic_csi_pv(self, pv: PersistentVolumeInfo) -> bool:
         """Check if PV is managed by democratic-csi."""

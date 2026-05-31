@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -22,12 +23,18 @@ type Exporter struct {
 	orphanedPVCsCount      prometheus.Gauge
 	orphanedSnapshotsCount prometheus.Gauge
 	scanDuration           prometheus.Gauge
+	scanDurationHist       prometheus.Histogram
+	listDurationHist       *prometheus.HistogramVec
 	totalPVs               prometheus.Gauge
 	totalPVCs              prometheus.Gauge
 	totalSnapshots         prometheus.Gauge
 	storageEfficiency      prometheus.Gauge
 	lastScanTimestamp      prometheus.Gauge
 }
+
+var scanDurationBuckets = []float64{0.5, 1, 2, 5, 10, 30, 60, 120}
+
+var listDurationBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30}
 
 // Config holds metrics exporter configuration
 type Config struct {
@@ -61,6 +68,18 @@ func NewExporter(config Config) *Exporter {
 		Help: "Duration of the last monitoring scan in seconds",
 	})
 
+	scanDurationHist := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "truenas_monitor_scan_duration_histogram_seconds",
+		Help:    "Distribution of monitoring scan durations in seconds",
+		Buckets: scanDurationBuckets,
+	})
+
+	listDurationHist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "truenas_monitor_list_duration_seconds",
+		Help:    "Duration of inventory list operations during orphan detection",
+		Buckets: listDurationBuckets,
+	}, []string{"phase"})
+
 	totalPVs := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "truenas_monitor_pvs_total",
 		Help: "Total number of persistent volumes",
@@ -92,6 +111,8 @@ func NewExporter(config Config) *Exporter {
 		orphanedPVCsCount,
 		orphanedSnapshotsCount,
 		scanDuration,
+		scanDurationHist,
+		listDurationHist,
 		totalPVs,
 		totalPVCs,
 		totalSnapshots,
@@ -124,6 +145,8 @@ func NewExporter(config Config) *Exporter {
 		orphanedPVCsCount:      orphanedPVCsCount,
 		orphanedSnapshotsCount: orphanedSnapshotsCount,
 		scanDuration:           scanDuration,
+		scanDurationHist:       scanDurationHist,
+		listDurationHist:       listDurationHist,
 		totalPVs:               totalPVs,
 		totalPVCs:              totalPVCs,
 		totalSnapshots:         totalSnapshots,
@@ -175,6 +198,16 @@ func (e *Exporter) SetScanDuration(duration float64) {
 	e.scanDuration.Set(duration)
 }
 
+// ObserveScanDuration records a scan duration in the histogram
+func (e *Exporter) ObserveScanDuration(duration float64) {
+	e.scanDurationHist.Observe(duration)
+}
+
+// ObserveListPhaseDuration records a list operation duration for a detection phase
+func (e *Exporter) ObserveListPhaseDuration(phase string, duration float64) {
+	e.listDurationHist.WithLabelValues(phase).Observe(duration)
+}
+
 // SetTotalPVs sets the total PVs metric
 func (e *Exporter) SetTotalPVs(count float64) {
 	e.totalPVs.Set(count)
@@ -198,4 +231,9 @@ func (e *Exporter) SetStorageEfficiency(efficiency float64) {
 // SetLastScanTimestamp sets the last scan timestamp metric
 func (e *Exporter) SetLastScanTimestamp(timestamp time.Time) {
 	e.lastScanTimestamp.Set(float64(timestamp.Unix()))
+}
+
+// GatherForTest exposes registered metrics for unit tests.
+func (e *Exporter) GatherForTest() ([]*dto.MetricFamily, error) {
+	return e.registry.Gather()
 }
