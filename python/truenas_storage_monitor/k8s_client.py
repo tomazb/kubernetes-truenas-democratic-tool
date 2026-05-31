@@ -4,12 +4,15 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Dict, Optional, Any, Generator
+from typing import List, Dict, Optional, Any, Generator, TYPE_CHECKING
 
 from kubernetes import client as k8s_client, config, watch
 from kubernetes.client.rest import ApiException
 
 from .time_utils import ensure_utc, utc_now
+
+if TYPE_CHECKING:
+    from .inventory_cache import InventoryCache
 
 logger = logging.getLogger(__name__)
 
@@ -101,13 +104,15 @@ class OrphanedResource:
 class K8sClient:
     """Kubernetes client wrapper for storage operations."""
 
-    def __init__(self, config_obj: K8sConfig):
+    def __init__(self, config_obj: K8sConfig, inventory_cache: Optional["InventoryCache"] = None):
         """Initialize Kubernetes client.
 
         Args:
             config_obj: Kubernetes client configuration
+            inventory_cache: Optional TTL cache for list operations
         """
         self.config = config_obj
+        self._cache = inventory_cache
 
         # Load Kubernetes configuration
         if config_obj.in_cluster:
@@ -142,11 +147,13 @@ class K8sClient:
             raise
 
     def get_persistent_volumes(self) -> List[PersistentVolumeInfo]:
-        """Get all PersistentVolumes managed by the CSI driver.
+        """Get all PersistentVolumes managed by the CSI driver."""
+        if self._cache is not None:
+            return self._cache.get_or_load("k8s_pvs", "k8s_pvs", self._load_persistent_volumes)
+        return self._load_persistent_volumes()
 
-        Returns:
-            List of PersistentVolumeInfo objects
-        """
+    def _load_persistent_volumes(self) -> List[PersistentVolumeInfo]:
+        """Fetch PersistentVolumes from the Kubernetes API."""
         try:
             pvs = self.core_v1.list_persistent_volume()
             result = []
@@ -188,7 +195,22 @@ class K8sClient:
     def get_persistent_volume_claims(
         self, namespace: Optional[str] = None
     ) -> List[PersistentVolumeClaimInfo]:
-        """Get all PersistentVolumeClaims.
+        """Get all PersistentVolumeClaims."""
+        if self._cache is not None:
+            from .inventory_cache import namespace_key
+
+            key = namespace_key("k8s_pvcs", namespace or self.config.namespace)
+            return self._cache.get_or_load(
+                "k8s_pvcs",
+                key,
+                lambda: self._load_persistent_volume_claims(namespace),
+            )
+        return self._load_persistent_volume_claims(namespace)
+
+    def _load_persistent_volume_claims(
+        self, namespace: Optional[str] = None
+    ) -> List[PersistentVolumeClaimInfo]:
+        """Fetch PersistentVolumeClaims from the Kubernetes API.
 
         Args:
             namespace: Namespace to filter by (None for all namespaces)
@@ -234,7 +256,20 @@ class K8sClient:
             raise
 
     def get_volume_snapshots(self, namespace: Optional[str] = None) -> List[VolumeSnapshotInfo]:
-        """Get all VolumeSnapshots.
+        """Get all VolumeSnapshots."""
+        if self._cache is not None:
+            from .inventory_cache import namespace_key
+
+            key = namespace_key("k8s_snapshots", namespace or self.config.namespace)
+            return self._cache.get_or_load(
+                "k8s_snapshots",
+                key,
+                lambda: self._load_volume_snapshots(namespace),
+            )
+        return self._load_volume_snapshots(namespace)
+
+    def _load_volume_snapshots(self, namespace: Optional[str] = None) -> List[VolumeSnapshotInfo]:
+        """Fetch VolumeSnapshots from the Kubernetes API.
 
         Args:
             namespace: Namespace to filter by (None for all namespaces)

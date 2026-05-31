@@ -12,13 +12,14 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Kubernetes KubernetesConfig `yaml:"kubernetes"`
-	TrueNAS    TrueNASConfig    `yaml:"truenas"`
-	Monitor    MonitorConfig    `yaml:"monitor"`
-	Metrics    MetricsConfig    `yaml:"metrics"`
-	Alerts     AlertsConfig     `yaml:"alerts"`
-	Logging    LoggingConfig    `yaml:"logging"`
-	Security   SecurityConfig   `yaml:"security"`
+	Kubernetes  KubernetesConfig  `yaml:"kubernetes"`
+	TrueNAS     TrueNASConfig     `yaml:"truenas"`
+	Monitor     MonitorConfig     `yaml:"monitor"`
+	Metrics     MetricsConfig     `yaml:"metrics"`
+	Performance PerformanceConfig `yaml:"performance"`
+	Alerts      AlertsConfig      `yaml:"alerts"`
+	Logging     LoggingConfig     `yaml:"logging"`
+	Security    SecurityConfig    `yaml:"security"`
 }
 
 // KubernetesConfig holds Kubernetes connection settings
@@ -50,6 +51,18 @@ type MetricsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Port    int    `yaml:"port"`
 	Path    string `yaml:"path"`
+}
+
+// PerformanceConfig holds performance tuning settings.
+type PerformanceConfig struct {
+	Cache CacheConfig `yaml:"cache"`
+}
+
+// CacheConfig holds in-process inventory cache settings.
+type CacheConfig struct {
+	Enabled bool          `yaml:"enabled"`
+	TTL     time.Duration `yaml:"ttl"`
+	MaxSize int           `yaml:"max_size"`
 }
 
 // AlertsConfig holds alerting settings
@@ -100,6 +113,13 @@ func Load(path string) (*Config, error) {
 			Port:    8080,
 			Path:    "/metrics",
 		},
+		Performance: PerformanceConfig{
+			Cache: CacheConfig{
+				Enabled: true,
+				TTL:     5 * time.Minute,
+				MaxSize: 1000,
+			},
+		},
 		Logging: LoggingConfig{
 			Level:       "info",
 			Development: false,
@@ -131,6 +151,8 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
+	config.applyPerformanceDefaults()
+
 	// Validate configuration only if file exists
 	if fileExists {
 		if err := config.validate(); err != nil {
@@ -139,6 +161,15 @@ func Load(path string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func (c *Config) applyPerformanceDefaults() {
+	if c.Performance.Cache.TTL == 0 {
+		c.Performance.Cache.TTL = 5 * time.Minute
+	}
+	if c.Performance.Cache.MaxSize == 0 {
+		c.Performance.Cache.MaxSize = 1000
+	}
 }
 
 // expandEnvVars expands environment variables in the format ${VAR_NAME} or ${VAR_NAME:default}
@@ -170,6 +201,8 @@ func expandEnvVars(input string) string {
 
 // validate checks if the configuration is valid
 func (c *Config) validate() error {
+	c.applyPerformanceDefaults()
+
 	// TrueNAS validation
 	if c.TrueNAS.URL == "" {
 		return fmt.Errorf("truenas.url is required")
@@ -218,6 +251,14 @@ func (c *Config) validate() error {
 
 	if c.Metrics.Path == "" {
 		return fmt.Errorf("metrics.path cannot be empty")
+	}
+
+	if c.Performance.Cache.TTL < time.Second {
+		return fmt.Errorf("performance.cache.ttl must be at least 1 second")
+	}
+
+	if c.Performance.Cache.Enabled && c.Performance.Cache.MaxSize < 1 {
+		return fmt.Errorf("performance.cache.max_size must be at least 1")
 	}
 
 	// Logging validation

@@ -136,6 +136,27 @@ class Config:
         """Whether Prometheus metrics export is enabled."""
         return bool(self.get("metrics.enabled", False))
 
+    @property
+    def performance(self) -> Dict[str, Any]:
+        """Performance tuning configuration."""
+        return self.get("performance", {})
+
+    @property
+    def cache_enabled(self) -> bool:
+        """Whether in-process inventory cache is enabled."""
+        return bool(self.performance.get("cache", {}).get("enabled", True))
+
+    @property
+    def cache_ttl(self) -> timedelta:
+        """Inventory cache TTL from performance.cache.ttl."""
+        raw = self.performance.get("cache", {}).get("ttl", "5m")
+        return parse_duration(raw)
+
+    @property
+    def cache_max_size(self) -> int:
+        """Inventory cache max entries from performance.cache.max_size."""
+        return int(self.performance.get("cache", {}).get("max_size", 1000))
+
 
 def parse_truenas_url(url: str) -> Tuple[str, int, bool]:
     """Parse a TrueNAS URL into host, port, and TLS scheme flag."""

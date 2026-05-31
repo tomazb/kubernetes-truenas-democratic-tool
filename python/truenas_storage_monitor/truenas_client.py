@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TYPE_CHECKING
 from urllib.parse import quote
 
 import requests
@@ -11,6 +11,9 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
 from .exceptions import TrueNASMonitorError
+
+if TYPE_CHECKING:
+    from .inventory_cache import InventoryCache
 
 logger = logging.getLogger(__name__)
 
@@ -121,14 +124,16 @@ class OrphanedVolume:
 class TrueNASClient:
     """Client for TrueNAS REST API."""
 
-    def __init__(self, config: TrueNASConfig):
+    def __init__(self, config: TrueNASConfig, inventory_cache: Optional["InventoryCache"] = None):
         """Initialize TrueNAS client.
 
         Args:
             config: TrueNAS client configuration
+            inventory_cache: Optional TTL cache for list operations
         """
         self.config = config
         self.base_url = config.base_url
+        self._cache = inventory_cache
 
         # Setup session with retry logic
         self.session = requests.Session()
@@ -254,11 +259,15 @@ class TrueNASClient:
             raise TrueNASError(f"Failed to get datasets: {str(e)}")
 
     def get_volumes(self) -> List[VolumeInfo]:
-        """Get all iSCSI volumes (extents).
+        """Get all iSCSI volumes (extents)."""
+        if self._cache is not None:
+            return self._cache.get_or_load(
+                "truenas_datasets", "truenas_datasets", self._load_volumes
+            )
+        return self._load_volumes()
 
-        Returns:
-            List of VolumeInfo objects
-        """
+    def _load_volumes(self) -> List[VolumeInfo]:
+        """Fetch iSCSI volumes from TrueNAS."""
         try:
             response = self.session.get(
                 f"{self.base_url}/iscsi/extent", timeout=self.config.timeout
@@ -302,7 +311,17 @@ class TrueNASClient:
             raise TrueNASError(f"Failed to get NFS shares: {str(e)}")
 
     def get_snapshots(self, dataset: Optional[str] = None) -> List[SnapshotInfo]:
-        """Get all snapshots, optionally filtered by dataset.
+        """Get all snapshots, optionally filtered by dataset."""
+        if self._cache is not None and dataset is None:
+            return self._cache.get_or_load(
+                "truenas_snapshots",
+                "truenas_snapshots",
+                lambda: self._load_snapshots(None),
+            )
+        return self._load_snapshots(dataset)
+
+    def _load_snapshots(self, dataset: Optional[str] = None) -> List[SnapshotInfo]:
+        """Fetch snapshots from TrueNAS.
 
         Args:
             dataset: Dataset name to filter snapshots

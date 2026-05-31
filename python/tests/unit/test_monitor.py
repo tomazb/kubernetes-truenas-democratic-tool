@@ -31,6 +31,7 @@ class TestMonitor:
         config.orphan_threshold = timedelta(hours=24)
         config.snapshot_retention = timedelta(days=30)
         config.metrics_enabled = False
+        config.cache_enabled = False
         return config
 
     @pytest.fixture
@@ -56,8 +57,12 @@ class TestMonitor:
             assert monitor.config == mock_config
             mock_config.k8s_config.assert_called_once()
             mock_config.truenas_config.assert_called_once()
-            mock_k8s.assert_called_once_with(mock_config.k8s_config.return_value)
-            mock_truenas.assert_called_once_with(mock_config.truenas_config.return_value)
+            mock_k8s.assert_called_once_with(
+                mock_config.k8s_config.return_value, inventory_cache=None
+            )
+            mock_truenas.assert_called_once_with(
+                mock_config.truenas_config.return_value, inventory_cache=None
+            )
 
     def test_find_orphaned_resources_success(self, monitor):
         """Test successful orphaned resource detection."""

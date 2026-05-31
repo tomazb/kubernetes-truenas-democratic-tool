@@ -11,7 +11,9 @@ import (
 
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/api"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/config"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/inventorycache"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
 )
@@ -77,6 +79,15 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to initialize TrueNAS client", zap.Error(err))
 	}
+
+	metricsExporter := metrics.NewExporter(metrics.Config{
+		Enabled: cfg.Metrics.Enabled,
+		Port:    cfg.Metrics.Port,
+		Path:    cfg.Metrics.Path,
+	})
+	inventoryCache := inventorycache.NewFromConfig(cfg.Performance, metricsExporter)
+	k8sClient = inventorycache.WrapK8sClient(k8sClient, inventoryCache)
+	truenasClient = inventorycache.WrapTrueNASClient(truenasClient, inventoryCache)
 
 	// Initialize API server
 	apiServer, err := api.NewServer(api.Config{

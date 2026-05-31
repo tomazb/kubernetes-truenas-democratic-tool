@@ -538,6 +538,13 @@ func validConfigForValidate(t *testing.T) *Config {
 			AllowedOrigins: []string{"*"},
 			SessionTimeout: 24 * time.Hour,
 		},
+		Performance: PerformanceConfig{
+			Cache: CacheConfig{
+				Enabled: true,
+				TTL:     5 * time.Minute,
+				MaxSize: 1000,
+			},
+		},
 	}
 }
 

@@ -13,6 +13,7 @@ from .k8s_client import (
 from .truenas_client import TrueNASClient, VolumeInfo, SnapshotInfo
 from .config import Config
 from .exceptions import TrueNASMonitorError
+from .inventory_cache import InventoryCache
 from .observability import ScanObservability
 from .time_utils import ensure_utc, resource_age, utc_now
 
@@ -25,8 +26,17 @@ class Monitor:
     def __init__(self, config: Config):
         """Initialize the monitor with configuration."""
         self.config = config
-        self.k8s_client = K8sClient(config.k8s_config())
-        self.truenas_client = TrueNASClient(config.truenas_config())
+        inventory_cache = None
+        if config.cache_enabled:
+            inventory_cache = InventoryCache(
+                ttl=config.cache_ttl,
+                max_size=config.cache_max_size,
+                enabled=True,
+            )
+        self.k8s_client = K8sClient(config.k8s_config(), inventory_cache=inventory_cache)
+        self.truenas_client = TrueNASClient(
+            config.truenas_config(), inventory_cache=inventory_cache
+        )
 
     def find_orphaned_resources(
         self,
