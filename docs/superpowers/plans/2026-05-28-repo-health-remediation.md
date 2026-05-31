@@ -418,6 +418,7 @@ Suggested worktree layout:
 - **Acceptance criteria:**
   - [x] Cache hit reduces external list call count within TTL window.
   - [x] TTL expiry triggers refresh; tests cover hit/miss/expiry.
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/60
 
 #### PR 11: Watch-Based Incremental Reconcile
 
