@@ -36,7 +36,7 @@ func (c *cachedK8sClient) ListPersistentVolumes(ctx context.Context) ([]corev1.P
 	if err != nil {
 		return nil, err
 	}
-	return cloneSlice(res), nil
+	return clonePersistentVolumes(res), nil
 }
 
 func (c *cachedK8sClient) ListPersistentVolumeClaims(ctx context.Context, namespace string) ([]corev1.PersistentVolumeClaim, error) {
@@ -47,7 +47,7 @@ func (c *cachedK8sClient) ListPersistentVolumeClaims(ctx context.Context, namesp
 	if err != nil {
 		return nil, err
 	}
-	return cloneSlice(res), nil
+	return clonePersistentVolumeClaims(res), nil
 }
 
 func (c *cachedK8sClient) ListVolumeSnapshots(ctx context.Context, namespace string) ([]snapshotv1.VolumeSnapshot, error) {
@@ -58,7 +58,7 @@ func (c *cachedK8sClient) ListVolumeSnapshots(ctx context.Context, namespace str
 	if err != nil {
 		return nil, err
 	}
-	return cloneSlice(res), nil
+	return cloneVolumeSnapshots(res), nil
 }
 
 func (c *cachedK8sClient) ListDemocraticCSIPersistentVolumes(ctx context.Context) ([]corev1.PersistentVolume, error) {
@@ -68,7 +68,7 @@ func (c *cachedK8sClient) ListDemocraticCSIPersistentVolumes(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
-	return cloneSlice(res), nil
+	return clonePersistentVolumes(res), nil
 }
 
 func (c *cachedK8sClient) ListUnboundPersistentVolumeClaims(ctx context.Context, namespace string) ([]corev1.PersistentVolumeClaim, error) {

@@ -9,12 +9,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestCloneSlice_ReturnsIndependentCopy(t *testing.T) {
-	original := []corev1.PersistentVolume{{ObjectMeta: metav1.ObjectMeta{Name: "pv-1"}}}
-	copied := cloneSlice(original)
+func TestClonePersistentVolumes_ReturnsIndependentCopy(t *testing.T) {
+	original := []corev1.PersistentVolume{{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "pv-1",
+			Labels: map[string]string{"app": "demo"},
+		},
+	}}
+	copied := clonePersistentVolumes(original)
 	require.Len(t, copied, 1)
 	copied[0].Name = "mutated"
+	copied[0].Labels["app"] = "changed"
 	require.Equal(t, "pv-1", original[0].Name)
+	require.Equal(t, "demo", original[0].Labels["app"])
 }
 
 func TestCache_GetOrLoad_ExpiresAtBoundary(t *testing.T) {

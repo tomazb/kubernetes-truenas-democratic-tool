@@ -31,7 +31,7 @@ func (c *cachedTrueNASClient) ListVolumes(ctx context.Context) ([]truenas.Volume
 	if err != nil {
 		return nil, err
 	}
-	return cloneSlice(res), nil
+	return cloneTrueNASVolumes(res), nil
 }
 
 func (c *cachedTrueNASClient) ListSnapshots(ctx context.Context) ([]truenas.Snapshot, error) {
@@ -41,7 +41,7 @@ func (c *cachedTrueNASClient) ListSnapshots(ctx context.Context) ([]truenas.Snap
 	if err != nil {
 		return nil, err
 	}
-	return cloneSlice(res), nil
+	return cloneTrueNASSnapshots(res), nil
 }
 
 func (c *cachedTrueNASClient) ListPools(ctx context.Context) ([]truenas.Pool, error) {
