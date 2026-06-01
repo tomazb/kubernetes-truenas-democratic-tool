@@ -98,8 +98,8 @@ Suggested worktree layout:
 - **Current phase:** Stage 2 — In Progress (M4 scalability foundation)
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-31
-- **Last merged:** PR 9 config wiring + performance observability [#59](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/59) (2026-05-31, `5829adf`)
-- **Next up:** PR 10 — TTL inventory cache
+- **Last merged:** PR 10 TTL inventory cache [#60](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/60) (2026-05-31, `0b9392e`)
+- **Next up:** PR 11 — Watch-based incremental reconcile
 
 ## Milestones
 
@@ -375,7 +375,7 @@ Suggested worktree layout:
 ### Stage 2: Scalability Foundation
 
 - [ ] Introduce incremental/watch-based detection where practical (PR 11).
-- [ ] Add caching/TTL for expensive list operations (PR 10).
+- [x] Add caching/TTL for expensive list operations (PR 10).
 - [ ] Define and track performance budgets (scan time, API p95, memory) (PR 12).
 - [x] Wire config thresholds and performance observability baseline (PR 9).
 
@@ -406,12 +406,14 @@ Suggested worktree layout:
 
 #### PR 10: TTL Inventory Cache
 
-- **Status:** In Progress
+- **Status:** Done
 - **Risk:** Medium
 - **Focus:** In-process TTL cache for expensive K8s/TrueNAS list operations; dedupe duplicate PVC lists in detector.
 - **Branch/worktree:**
-  - Branch: `feature/pr-10-inventory-cache`
-  - Worktree: `.worktrees/pr-10-inventory-cache`
+  - Branch: `feature/pr-10-inventory-cache` (merged; remove local branch if no longer needed)
+  - Worktree: `.worktrees/pr-10-inventory-cache` (removed)
+- **Merged:** 2026-05-31
+- **Merge commit:** `0b9392e`
 - **Spec/design:** `docs/superpowers/specs/2026-05-31-pr-10-inventory-cache-design.md`
 - **Implementation plan:** `docs/superpowers/plans/2026-05-31-pr-10-inventory-cache.md`
 - **Depends on:** PR 9 (metrics baseline)
@@ -474,6 +476,6 @@ Suggested worktree layout:
 - [x] Complete PR 8 (docs accuracy).
 - [x] Start Stage 2+ initiatives after baseline PRs are merged.
 - [x] Complete PR 9 (config wiring + performance observability).
-- [ ] Complete PR 10 (TTL inventory cache).
+- [x] Complete PR 10 (TTL inventory cache).
 - [ ] Complete PR 11 (watch/incremental reconcile).
 - [ ] Complete PR 12 (performance budgets).
