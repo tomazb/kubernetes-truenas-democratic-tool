@@ -1,12 +1,17 @@
 package orphan
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -265,5 +270,132 @@ func TestHasCorrespondingTrueNASVolume_EmptyCSI(t *testing.T) {
 	}
 	if d.hasCorrespondingTrueNASVolume(pv, nil) {
 		t.Fatal("expected false when PV has no CSI source")
+	}
+}
+
+type pvcListSpyK8sClient struct {
+	pvcListCalls     int32
+	unboundListCalls int32
+}
+
+func (s *pvcListSpyK8sClient) ListPersistentVolumeClaims(context.Context, string) ([]corev1.PersistentVolumeClaim, error) {
+	atomic.AddInt32(&s.pvcListCalls, 1)
+	old := time.Now().Add(-48 * time.Hour)
+	return []corev1.PersistentVolumeClaim{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "pending-old",
+				Namespace:         "apps",
+				CreationTimestamp: metav1.NewTime(old),
+			},
+			Status: corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimPending},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "bound-old",
+				Namespace:         "apps",
+				CreationTimestamp: metav1.NewTime(old),
+			},
+			Status: corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+		},
+	}, nil
+}
+
+func (s *pvcListSpyK8sClient) ListPersistentVolumes(context.Context) ([]corev1.PersistentVolume, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListVolumeSnapshots(context.Context, string) ([]snapshotv1.VolumeSnapshot, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListStorageClasses(context.Context) ([]storagev1.StorageClass, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListPods(context.Context, string) ([]corev1.Pod, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListNamespaces(context.Context) ([]corev1.Namespace, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) GetNamespace(context.Context, string) (*corev1.Namespace, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListPersistentVolumesByStorageClass(context.Context, string) ([]corev1.PersistentVolume, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListPersistentVolumeClaimsByStorageClass(context.Context, string, string) ([]corev1.PersistentVolumeClaim, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListDemocraticCSIPersistentVolumes(context.Context) ([]corev1.PersistentVolume, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListUnboundPersistentVolumeClaims(context.Context, string) ([]corev1.PersistentVolumeClaim, error) {
+	atomic.AddInt32(&s.unboundListCalls, 1)
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) TestConnection(context.Context) error { return nil }
+
+func (s *pvcListSpyK8sClient) ValidateRBACPermissions(context.Context) (*k8s.RBACValidationResult, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) GetClusterInfo(context.Context) (*k8s.ClusterInfo, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListCSINodes(context.Context) ([]storagev1.CSINode, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListCSIDrivers(context.Context) ([]storagev1.CSIDriver, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) ListVolumeAttachments(context.Context) ([]storagev1.VolumeAttachment, error) {
+	return nil, nil
+}
+
+func (s *pvcListSpyK8sClient) GetCSIDriverPods(context.Context, string) ([]corev1.Pod, error) {
+	return nil, nil
+}
+
+func TestDetectOrphanedPVCs_SingleListCall(t *testing.T) {
+	spy := &pvcListSpyK8sClient{}
+	logger, err := logging.NewLogger(logging.Config{Level: "error", Encoding: "json"})
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	d := &Detector{
+		k8sClient: spy,
+		logger:    logger,
+		config: Config{
+			AgeThreshold: 24 * time.Hour,
+		},
+	}
+
+	orphaned, total, err := d.detectOrphanedPVCs(context.Background(), "apps", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if spy.pvcListCalls != 1 {
+		t.Fatalf("ListPersistentVolumeClaims calls = %d, want 1", spy.pvcListCalls)
+	}
+	if spy.unboundListCalls != 0 {
+		t.Fatalf("ListUnboundPersistentVolumeClaims calls = %d, want 0", spy.unboundListCalls)
+	}
+	if total != 2 {
+		t.Fatalf("total PVCs = %d, want 2", total)
+	}
+	if len(orphaned) != 1 {
+		t.Fatalf("orphaned PVCs = %d, want 1", len(orphaned))
 	}
 }

@@ -294,3 +294,28 @@ class TestConfigClass:
         }
         assert config.orphan_threshold == timedelta(hours=48)
         assert config.snapshot_retention == timedelta(days=7)
+
+    def test_cache_config_properties(self):
+        """Cache config properties coerce and validate values."""
+        from datetime import timedelta
+
+        config = Config.__new__(Config)
+        config.data = {
+            "performance": {
+                "cache": {
+                    "enabled": "false",
+                    "ttl": "10m",
+                    "max_size": 500,
+                }
+            }
+        }
+        assert config.cache_enabled is False
+        assert config.cache_ttl == timedelta(minutes=10)
+        assert config.cache_max_size == 500
+
+        config.data["performance"]["cache"]["enabled"] = "true"
+        assert config.cache_enabled is True
+
+        with pytest.raises(ConfigurationError, match="max_size must be > 0"):
+            config.data["performance"]["cache"]["max_size"] = 0
+            _ = config.cache_max_size

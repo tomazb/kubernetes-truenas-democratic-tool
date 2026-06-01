@@ -51,3 +51,25 @@ func TestExporter_ObserveListPhaseDuration(t *testing.T) {
 	}
 	require.True(t, found, "list phase histogram sample not found")
 }
+
+func TestExporter_RecordInventoryCacheAccess(t *testing.T) {
+	exporter := NewExporter(Config{Enabled: true, Port: 0, Path: "/metrics"})
+
+	exporter.RecordInventoryCacheAccess("k8s_pvcs", false)
+	exporter.RecordInventoryCacheAccess("k8s_pvcs", true)
+
+	families, err := exporter.registry.Gather()
+	require.NoError(t, err)
+
+	var hits, misses float64
+	for _, family := range families {
+		switch family.GetName() {
+		case "truenas_monitor_inventory_cache_hits_total":
+			hits = family.GetMetric()[0].GetCounter().GetValue()
+		case "truenas_monitor_inventory_cache_misses_total":
+			misses = family.GetMetric()[0].GetCounter().GetValue()
+		}
+	}
+	require.Equal(t, float64(1), hits)
+	require.Equal(t, float64(1), misses)
+}

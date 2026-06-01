@@ -136,6 +136,45 @@ class Config:
         """Whether Prometheus metrics export is enabled."""
         return bool(self.get("metrics.enabled", False))
 
+    @property
+    def performance(self) -> Dict[str, Any]:
+        """Performance tuning configuration."""
+        return self.get("performance", {})
+
+    @property
+    def cache_enabled(self) -> bool:
+        """Whether in-process inventory cache is enabled."""
+        raw = self.performance.get("cache", {}).get("enabled", True)
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, str):
+            normalized = raw.strip().lower()
+            if normalized in {"true", "1", "yes", "on"}:
+                return True
+            if normalized in {"false", "0", "no", "off"}:
+                return False
+        raise ConfigurationError(f"Invalid cache enabled flag: {raw!r}")
+
+    @property
+    def cache_ttl(self) -> timedelta:
+        """Inventory cache TTL from performance.cache.ttl."""
+        raw = self.performance.get("cache", {}).get("ttl", "5m")
+        return parse_duration(raw)
+
+    @property
+    def cache_max_size(self) -> int:
+        """Inventory cache max entries from performance.cache.max_size."""
+        raw = self.performance.get("cache", {}).get("max_size", 1000)
+        if isinstance(raw, bool):
+            raise ConfigurationError(f"Invalid cache max_size value: {raw!r}")
+        try:
+            size = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ConfigurationError(f"Invalid cache max_size value: {raw!r}") from exc
+        if size <= 0:
+            raise ConfigurationError(f"cache max_size must be > 0: {raw!r}")
+        return size
+
 
 def parse_truenas_url(url: str) -> Tuple[str, int, bool]:
     """Parse a TrueNAS URL into host, port, and TLS scheme flag."""

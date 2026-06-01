@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/config"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/inventorycache"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
@@ -85,6 +86,10 @@ func main() {
 		Port:    cfg.Metrics.Port,
 		Path:    cfg.Metrics.Path,
 	})
+
+	inventoryCache := inventorycache.NewFromConfig(cfg.Performance, metricsExporter)
+	k8sClient = inventorycache.WrapK8sClient(k8sClient, inventoryCache)
+	truenasClient = inventorycache.WrapTrueNASClient(truenasClient, inventoryCache)
 
 	// Initialize monitor service
 	monitorService, err := monitor.NewService(monitor.Config{

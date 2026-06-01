@@ -47,6 +47,13 @@ logging:
   format: json
   output: stdout
 
+# In-process inventory cache (wired in Python monitor list operations)
+performance:
+  cache:
+    enabled: true
+    ttl: 5m
+    max_size: 1000
+
 # --- Planned sections below: NOT read by baseline Python library ---
 # Kept as roadmap reference only. See docs/config-compatibility.md.
 

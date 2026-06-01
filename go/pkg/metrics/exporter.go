@@ -25,6 +25,8 @@ type Exporter struct {
 	scanDuration           prometheus.Gauge
 	scanDurationHist       prometheus.Histogram
 	listDurationHist       *prometheus.HistogramVec
+	cacheHits              *prometheus.CounterVec
+	cacheMisses            *prometheus.CounterVec
 	totalPVs               prometheus.Gauge
 	totalPVCs              prometheus.Gauge
 	totalSnapshots         prometheus.Gauge
@@ -80,6 +82,16 @@ func NewExporter(config Config) *Exporter {
 		Buckets: listDurationBuckets,
 	}, []string{"phase"})
 
+	cacheHits := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "truenas_monitor_inventory_cache_hits_total",
+		Help: "Inventory cache hits by operation",
+	}, []string{"operation"})
+
+	cacheMisses := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "truenas_monitor_inventory_cache_misses_total",
+		Help: "Inventory cache misses by operation",
+	}, []string{"operation"})
+
 	totalPVs := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "truenas_monitor_pvs_total",
 		Help: "Total number of persistent volumes",
@@ -113,6 +125,8 @@ func NewExporter(config Config) *Exporter {
 		scanDuration,
 		scanDurationHist,
 		listDurationHist,
+		cacheHits,
+		cacheMisses,
 		totalPVs,
 		totalPVCs,
 		totalSnapshots,
@@ -147,6 +161,8 @@ func NewExporter(config Config) *Exporter {
 		scanDuration:           scanDuration,
 		scanDurationHist:       scanDurationHist,
 		listDurationHist:       listDurationHist,
+		cacheHits:              cacheHits,
+		cacheMisses:            cacheMisses,
 		totalPVs:               totalPVs,
 		totalPVCs:              totalPVCs,
 		totalSnapshots:         totalSnapshots,
@@ -206,6 +222,15 @@ func (e *Exporter) ObserveScanDuration(duration float64) {
 // ObserveListPhaseDuration records a list operation duration for a detection phase
 func (e *Exporter) ObserveListPhaseDuration(phase string, duration float64) {
 	e.listDurationHist.WithLabelValues(phase).Observe(duration)
+}
+
+// RecordInventoryCacheAccess increments cache hit or miss counters.
+func (e *Exporter) RecordInventoryCacheAccess(operation string, hit bool) {
+	if hit {
+		e.cacheHits.WithLabelValues(operation).Inc()
+		return
+	}
+	e.cacheMisses.WithLabelValues(operation).Inc()
 }
 
 // SetTotalPVs sets the total PVs metric

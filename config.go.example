@@ -29,6 +29,12 @@ metrics:
   port: 8080
   path: /metrics
 
+performance:
+  cache:
+    enabled: true
+    ttl: 5m
+    max_size: 1000
+
 alerts:
   slack:
     webhook: ${SLACK_WEBHOOK}
