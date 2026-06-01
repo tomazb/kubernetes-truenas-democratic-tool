@@ -123,7 +123,7 @@ class WatchReconciler:
 
         def watch_pv() -> None:
             try:
-                for _event in k8s.watch_persistent_volumes(timeout_seconds=60):
+                for _ in k8s.watch_persistent_volumes(timeout_seconds=60):
                     if self._stop.is_set():
                         break
                     debouncer.trigger()
@@ -133,7 +133,7 @@ class WatchReconciler:
 
         def watch_pvc() -> None:
             try:
-                for _event in k8s.watch_persistent_volume_claims(
+                for _ in k8s.watch_persistent_volume_claims(
                     namespace=namespace, timeout_seconds=60
                 ):
                     if self._stop.is_set():
