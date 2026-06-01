@@ -104,7 +104,7 @@
 - Modify: `docs/config-compatibility.md`, `docs/superpowers/plans/2026-05-28-repo-health-remediation.md`
 
 - [x] **Step 1:** Document new keys and poll vs watch semantics
-- [ ] **Step 2:** Link spec + PR URL when opened
+- [x] **Step 2:** Link spec + PR URL when opened — https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/61
 
 ## Task 11: Verification gate
 

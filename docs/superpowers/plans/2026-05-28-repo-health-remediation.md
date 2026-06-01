@@ -99,7 +99,7 @@ Suggested worktree layout:
 - **Primary owner:** TBD
 - **Last updated:** 2026-05-31
 - **Last merged:** PR 10 TTL inventory cache [#60](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/60) (2026-05-31, `0b9392e`)
-- **Next up:** PR 11 — Watch-based incremental reconcile
+- **Next up:** PR 12 — Performance budgets and cardinality docs
 
 ## Milestones
 
@@ -424,7 +424,7 @@ Suggested worktree layout:
 
 #### PR 11: Watch-Based Incremental Reconcile
 
-- **Status:** Ready for PR
+- **Status:** In Review
 - **Risk:** High
 - **Focus:** client-go SharedInformers for PV/PVC/VolumeSnapshot; debounced reconcile; Python watch hook integration.
 - **Branch/worktree:**
@@ -433,6 +433,7 @@ Suggested worktree layout:
 - **Depends on:** PR 10
 - **Spec/design:** `docs/superpowers/specs/2026-06-01-pr-11-watch-reconcile-design.md`
 - **Implementation plan:** `docs/superpowers/plans/2026-06-01-pr-11-watch-reconcile.md`
+- **PR URL:** https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/61
 - **Acceptance criteria:**
   - [x] Watch mode opt-in via config (`poll` default); full-scan fallback on resync failure.
   - [x] Debounced reconcile triggers detector without full poll on every event.
