@@ -1,18 +1,20 @@
 package inventorycache
 
 import (
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // cloneSlice returns a shallow copy of a slice so callers cannot mutate cached data.
 func cloneSlice[T any](items []T) []T {
-	if len(items) == 0 {
+	if items == nil {
 		return nil
 	}
-	return append([]T(nil), items...)
+	if len(items) == 0 {
+		return []T{}
+	}
+	return append([]T{}, items...)
 }
 
 func cloneStringMap(m map[string]string) map[string]string {
@@ -26,32 +28,35 @@ func cloneStringMap(m map[string]string) map[string]string {
 	return out
 }
 
-func cloneObjectMeta(meta metav1.ObjectMeta) metav1.ObjectMeta {
-	meta.Labels = cloneStringMap(meta.Labels)
-	meta.Annotations = cloneStringMap(meta.Annotations)
-	return meta
-}
-
 func clonePersistentVolumes(in []corev1.PersistentVolume) []corev1.PersistentVolume {
-	out := cloneSlice(in)
-	for i := range out {
-		out[i].ObjectMeta = cloneObjectMeta(out[i].ObjectMeta)
+	if in == nil {
+		return nil
+	}
+	out := make([]corev1.PersistentVolume, len(in))
+	for i := range in {
+		out[i] = *in[i].DeepCopy()
 	}
 	return out
 }
 
 func clonePersistentVolumeClaims(in []corev1.PersistentVolumeClaim) []corev1.PersistentVolumeClaim {
-	out := cloneSlice(in)
-	for i := range out {
-		out[i].ObjectMeta = cloneObjectMeta(out[i].ObjectMeta)
+	if in == nil {
+		return nil
+	}
+	out := make([]corev1.PersistentVolumeClaim, len(in))
+	for i := range in {
+		out[i] = *in[i].DeepCopy()
 	}
 	return out
 }
 
 func cloneVolumeSnapshots(in []snapshotv1.VolumeSnapshot) []snapshotv1.VolumeSnapshot {
-	out := cloneSlice(in)
-	for i := range out {
-		out[i].ObjectMeta = cloneObjectMeta(out[i].ObjectMeta)
+	if in == nil {
+		return nil
+	}
+	out := make([]snapshotv1.VolumeSnapshot, len(in))
+	for i := range in {
+		out[i] = *in[i].DeepCopy()
 	}
 	return out
 }
