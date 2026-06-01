@@ -3,16 +3,12 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 	"k8s.io/client-go/util/retry"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -93,59 +89,9 @@ type Config struct {
 
 // NewClient creates a new Kubernetes client
 func NewClient(config Config) (Client, error) {
-	// Set defaults
-	if config.Timeout == 0 {
-		config.Timeout = 30 * time.Second
-	}
-	if config.RetryAttempts == 0 {
-		config.RetryAttempts = 3
-	}
-	if config.QPS == 0 {
-		config.QPS = 50.0
-	}
-	if config.Burst == 0 {
-		config.Burst = 100
-	}
-
-	var restConfig *rest.Config
-	var err error
-
-	if config.InCluster {
-		// Use in-cluster configuration
-		restConfig, err = rest.InClusterConfig()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create in-cluster config: %w", err)
-		}
-	} else {
-		// Use kubeconfig file
-		kubeconfigPath := config.Kubeconfig
-		if kubeconfigPath == "" {
-			if home := homedir.HomeDir(); home != "" {
-				kubeconfigPath = filepath.Join(home, ".kube", "config")
-			}
-		}
-
-		restConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create config from kubeconfig: %w", err)
-		}
-	}
-
-	// Configure connection settings
-	restConfig.Timeout = config.Timeout
-	restConfig.QPS = config.QPS
-	restConfig.Burst = config.Burst
-
-	// Create clientset
-	clientset, err := kubernetes.NewForConfig(restConfig)
+	clientset, snapshotClient, err := NewKubernetesClients(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create clientset: %w", err)
-	}
-
-	// Create snapshot client
-	snapshotClient, err := snapshotclient.NewForConfig(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create snapshot client: %w", err)
+		return nil, err
 	}
 
 	// Initialize logger

@@ -20,6 +20,7 @@ Go services and the Python library/CLI use **different YAML schemas**. A single 
 | In-cluster mode | `kubernetes.in_cluster` | `openshift.in_cluster` (boolean, defaults to false) |
 | CSI namespace | `kubernetes.namespace` | `openshift.namespace` |
 | Monitor tuning | `monitor.scan_interval`, `monitor.orphan_threshold`, `monitor.snapshot_retention` — **wired** in Go monitor and API | `monitoring.orphan_threshold`, `monitoring.snapshot.max_age` — **wired** in Python `Monitor.find_orphaned_resources()`; `monitoring.orphan_check_interval` still **not wired** (no background loop) |
+| Reconcile mode | `monitor.reconcile_mode` (`poll` default, `watch` opt-in), `monitor.debounce`, `monitor.truenas_poll_interval` — **wired** in Go monitor | `monitoring.reconcile_mode`, `monitoring.debounce`, `monitoring.truenas_poll_interval` — **wired** in `truenas-monitor watch` |
 | TrueNAS URL | `truenas.url` | `truenas.url` |
 | TrueNAS auth | `truenas.username`, `truenas.password` | `truenas.username`/`password` or `truenas.api_key` |
 | TLS insecure | `truenas.insecure` (default false) | `truenas.insecure` (default false) |

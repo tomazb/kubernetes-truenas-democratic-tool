@@ -8,10 +8,13 @@ import (
 
 	"go.uber.org/zap"
 
+	appconfig "github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/config"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/inventorycache"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/k8s"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/orphan"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/reconcile"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 )
 
@@ -21,9 +24,17 @@ type Service struct {
 	truenasClient   truenas.Client
 	metricsExporter *metrics.Exporter
 	logger          *logging.Logger
-	scanInterval    time.Duration
-	orphanDetector  *orphan.Detector
-	
+	scanInterval        time.Duration
+	reconcileMode       string
+	debounce            time.Duration
+	truenasPollInterval time.Duration
+	k8sConfig           k8s.Config
+	namespace           string
+	inventoryCache      *inventorycache.Cache
+	truenasPollClient   truenas.Client
+	truenasPoller       *reconcile.TruenasPoller
+	orphanDetector      *orphan.Detector
+
 	// Internal state
 	mu             sync.RWMutex
 	running        bool
@@ -38,9 +49,17 @@ type Config struct {
 	TruenasClient     truenas.Client
 	MetricsExporter   *metrics.Exporter
 	Logger            *logging.Logger
-	ScanInterval      time.Duration
-	OrphanThreshold   time.Duration
-	SnapshotRetention time.Duration
+	ScanInterval        time.Duration
+	ReconcileMode       string
+	Debounce            time.Duration
+	TruenasPollInterval time.Duration
+	K8sConfig           k8s.Config
+	Namespace           string
+	InventoryCache      *inventorycache.Cache
+	TruenasPollClient   truenas.Client
+	TruenasPoller       *reconcile.TruenasPoller
+	OrphanThreshold     time.Duration
+	SnapshotRetention   time.Duration
 }
 
 // OrphanedResource represents an orphaned resource
@@ -91,14 +110,27 @@ func NewService(config Config) (*Service, error) {
 		return nil, fmt.Errorf("failed to create orphan detector: %w", err)
 	}
 
+	reconcileMode := config.ReconcileMode
+	if reconcileMode == "" {
+		reconcileMode = appconfig.ReconcileModePoll
+	}
+
 	return &Service{
-		k8sClient:       config.K8sClient,
-		truenasClient:   config.TruenasClient,
-		metricsExporter: config.MetricsExporter,
-		logger:          config.Logger,
-		scanInterval:    config.ScanInterval,
-		orphanDetector:  orphanDetector,
-		stopChan:        make(chan struct{}),
+		k8sClient:           config.K8sClient,
+		truenasClient:       config.TruenasClient,
+		metricsExporter:     config.MetricsExporter,
+		logger:              config.Logger,
+		scanInterval:        config.ScanInterval,
+		reconcileMode:       reconcileMode,
+		debounce:            config.Debounce,
+		truenasPollInterval: config.TruenasPollInterval,
+		k8sConfig:           config.K8sConfig,
+		namespace:           config.Namespace,
+		inventoryCache:      config.InventoryCache,
+		truenasPollClient:   config.TruenasPollClient,
+		truenasPoller:       config.TruenasPoller,
+		orphanDetector:      orphanDetector,
+		stopChan:            make(chan struct{}),
 	}, nil
 }
 
@@ -121,9 +153,16 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.running = true
 
-	// Start monitoring goroutine
+	if s.metricsExporter != nil {
+		s.metricsExporter.SetReconcileMode(s.reconcileMode)
+	}
+
 	s.wg.Add(1)
-	go s.monitorLoop(ctx)
+	if s.reconcileMode == appconfig.ReconcileModeWatch {
+		go s.watchLoop(ctx)
+	} else {
+		go s.monitorLoop(ctx)
+	}
 
 	return nil
 }
@@ -176,6 +215,46 @@ func (s *Service) DetectorThresholds() (time.Duration, time.Duration) {
 		return 0, 0
 	}
 	return s.orphanDetector.Thresholds()
+}
+
+// PerformScan runs orphan detection and updates metrics (debounced watch reconcile).
+func (s *Service) PerformScan(ctx context.Context) {
+	s.performScan(ctx)
+}
+
+// PerformFullScan invalidates all inventory cache entries before scanning.
+func (s *Service) PerformFullScan(ctx context.Context) {
+	if s.inventoryCache != nil {
+		s.inventoryCache.InvalidateAll()
+	}
+	s.performScan(ctx)
+}
+
+func (s *Service) watchLoop(ctx context.Context) {
+	defer s.wg.Done()
+
+	pollClient := s.truenasPollClient
+	if pollClient == nil {
+		pollClient = s.truenasClient
+	}
+
+	controller := reconcile.NewController(reconcile.ControllerConfig{
+		K8sConfig:           s.k8sConfig,
+		Namespace:           s.namespace,
+		Debounce:            s.debounce,
+		TruenasPollInterval: s.truenasPollInterval,
+		Scan:                s.PerformScan,
+		FullScan:            s.PerformFullScan,
+		InventoryCache:      s.inventoryCache,
+		Metrics:             s.metricsExporter,
+		Logger:              s.logger,
+		TruenasPollClient: pollClient,
+		TruenasPoller:     s.truenasPoller,
+	})
+
+	if err := controller.Run(ctx); err != nil && ctx.Err() == nil {
+		s.logger.WithError(err).Error("watch reconcile stopped with error")
+	}
 }
 
 // monitorLoop runs the main monitoring loop

@@ -424,16 +424,18 @@ Suggested worktree layout:
 
 #### PR 11: Watch-Based Incremental Reconcile
 
-- **Status:** Planned
+- **Status:** Ready for PR
 - **Risk:** High
 - **Focus:** client-go SharedInformers for PV/PVC/VolumeSnapshot; debounced reconcile; Python watch hook integration.
 - **Branch/worktree:**
   - Branch: `feature/pr-11-watch-reconcile`
   - Worktree: `.worktrees/pr-11-watch-reconcile`
 - **Depends on:** PR 10
+- **Spec/design:** `docs/superpowers/specs/2026-06-01-pr-11-watch-reconcile-design.md`
+- **Implementation plan:** `docs/superpowers/plans/2026-06-01-pr-11-watch-reconcile.md`
 - **Acceptance criteria:**
-  - [ ] Watch mode opt-in via config (`poll` default); full-scan fallback on resync failure.
-  - [ ] Debounced reconcile triggers detector without full poll on every event.
+  - [x] Watch mode opt-in via config (`poll` default); full-scan fallback on resync failure.
+  - [x] Debounced reconcile triggers detector without full poll on every event.
 
 #### PR 12: Performance Budgets and Cardinality Docs
 

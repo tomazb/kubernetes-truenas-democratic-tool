@@ -20,7 +20,10 @@ truenas:
   # ca_file: /etc/truenas-monitor/truenas-ca.pem
 
 monitor:
-  scan_interval: 5m
+  reconcile_mode: poll   # poll | watch
+  scan_interval: 5m      # poll mode only
+  debounce: 30s          # watch mode only
+  truenas_poll_interval: 5m  # watch mode only
   orphan_threshold: 24h
   snapshot_retention: 720h
 

@@ -39,11 +39,19 @@ type TrueNASConfig struct {
 	CAFile   string `yaml:"ca_file"`
 }
 
+const (
+	ReconcileModePoll  = "poll"
+	ReconcileModeWatch = "watch"
+)
+
 // MonitorConfig holds monitoring settings
 type MonitorConfig struct {
-	ScanInterval     time.Duration `yaml:"scan_interval"`
-	OrphanThreshold  time.Duration `yaml:"orphan_threshold"`
-	SnapshotRetention time.Duration `yaml:"snapshot_retention"`
+	ReconcileMode       string        `yaml:"reconcile_mode"`
+	ScanInterval        time.Duration `yaml:"scan_interval"`
+	Debounce            time.Duration `yaml:"debounce"`
+	TruenasPollInterval time.Duration `yaml:"truenas_poll_interval"`
+	OrphanThreshold     time.Duration `yaml:"orphan_threshold"`
+	SnapshotRetention   time.Duration `yaml:"snapshot_retention"`
 }
 
 // MetricsConfig holds metrics export settings
@@ -104,9 +112,12 @@ func Load(path string) (*Config, error) {
 			Timeout: "30s",
 		},
 		Monitor: MonitorConfig{
-			ScanInterval:      5 * time.Minute,
-			OrphanThreshold:   24 * time.Hour,
-			SnapshotRetention: 30 * 24 * time.Hour,
+			ReconcileMode:       ReconcileModePoll,
+			ScanInterval:        5 * time.Minute,
+			Debounce:            30 * time.Second,
+			TruenasPollInterval: 5 * time.Minute,
+			OrphanThreshold:     24 * time.Hour,
+			SnapshotRetention:   30 * 24 * time.Hour,
 		},
 		Metrics: MetricsConfig{
 			Enabled: true,
@@ -156,6 +167,7 @@ func Load(path string) (*Config, error) {
 	}
 
 	config.applyPerformanceDefaults()
+	config.applyMonitorDefaults()
 
 	// Validate configuration only if file exists
 	if fileExists {
@@ -183,6 +195,18 @@ func (c *Config) applyPerformanceDefaults() {
 	}
 	if c.Performance.Cache.MaxSize == 0 {
 		c.Performance.Cache.MaxSize = 1000
+	}
+}
+
+func (c *Config) applyMonitorDefaults() {
+	if c.Monitor.ReconcileMode == "" {
+		c.Monitor.ReconcileMode = ReconcileModePoll
+	}
+	if c.Monitor.Debounce == 0 {
+		c.Monitor.Debounce = 30 * time.Second
+	}
+	if c.Monitor.TruenasPollInterval == 0 {
+		c.Monitor.TruenasPollInterval = 5 * time.Minute
 	}
 }
 
@@ -244,12 +268,28 @@ func (c *Config) validate() error {
 	}
 
 	// Monitor validation
-	if c.Monitor.ScanInterval < time.Minute {
-		return fmt.Errorf("monitor.scan_interval must be at least 1 minute")
+	mode := strings.ToLower(strings.TrimSpace(c.Monitor.ReconcileMode))
+	if mode != ReconcileModePoll && mode != ReconcileModeWatch {
+		return fmt.Errorf("monitor.reconcile_mode must be %q or %q", ReconcileModePoll, ReconcileModeWatch)
+	}
+	c.Monitor.ReconcileMode = mode
+
+	if mode == ReconcileModePoll {
+		if c.Monitor.ScanInterval < time.Minute {
+			return fmt.Errorf("monitor.scan_interval must be at least 1 minute")
+		}
+		if c.Monitor.ScanInterval > 24*time.Hour {
+			return fmt.Errorf("monitor.scan_interval must not exceed 24 hours")
+		}
 	}
 
-	if c.Monitor.ScanInterval > 24*time.Hour {
-		return fmt.Errorf("monitor.scan_interval must not exceed 24 hours")
+	if mode == ReconcileModeWatch {
+		if c.Monitor.Debounce < time.Second {
+			return fmt.Errorf("monitor.debounce must be at least 1 second")
+		}
+		if c.Monitor.TruenasPollInterval < time.Minute {
+			return fmt.Errorf("monitor.truenas_poll_interval must be at least 1 minute")
+		}
 	}
 
 	if c.Monitor.OrphanThreshold < time.Hour {
