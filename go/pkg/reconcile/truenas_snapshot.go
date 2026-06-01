@@ -5,7 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
+	"go.uber.org/zap"
 )
 
 // TruenasSnapshot holds the latest TrueNAS inventory from background polling.
@@ -20,6 +22,7 @@ type TruenasPoller struct {
 	client   truenas.Client
 	interval time.Duration
 	now      func() time.Time
+	logger   *logging.Logger
 
 	mu   sync.RWMutex
 	snap TruenasSnapshot
@@ -32,6 +35,11 @@ func NewTruenasPoller(client truenas.Client, interval time.Duration) *TruenasPol
 		interval: interval,
 		now:      time.Now,
 	}
+}
+
+// SetLogger attaches a logger for background poll failures.
+func (p *TruenasPoller) SetLogger(logger *logging.Logger) {
+	p.logger = logger
 }
 
 // Run polls TrueNAS until ctx is cancelled.
@@ -54,10 +62,12 @@ func (p *TruenasPoller) Run(ctx context.Context) {
 func (p *TruenasPoller) pollOnce(ctx context.Context) {
 	volumes, err := p.client.ListVolumes(ctx)
 	if err != nil {
+		p.logPollError("list volumes", err)
 		return
 	}
 	snapshots, err := p.client.ListSnapshots(ctx)
 	if err != nil {
+		p.logPollError("list snapshots", err)
 		return
 	}
 
@@ -128,4 +138,15 @@ func (c *SnapshotTruenasClient) GetSystemInfo(ctx context.Context) (*truenas.Sys
 
 func (c *SnapshotTruenasClient) TestConnection(ctx context.Context) error {
 	return c.inner.TestConnection(ctx)
+}
+
+func (p *TruenasPoller) logPollError(operation string, err error) {
+	if p.logger == nil {
+		return
+	}
+	p.logger.WithComponent("truenas-poller").Warn(
+		"TrueNAS background poll failed",
+		zap.String("operation", operation),
+		zap.Error(err),
+	)
 }

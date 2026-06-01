@@ -57,7 +57,7 @@ def test_watch_reconciler_debounced_scan():
         "scan_duration": 0.1,
     }
     monitor.k8s_client = MagicMock()
-    monitor.k8s_client._inventory_cache = None
+    monitor.k8s_client._cache = None
     monitor.truenas_client = MagicMock()
     monitor.truenas_client.get_volumes.return_value = []
     monitor.truenas_client.get_snapshots.return_value = []

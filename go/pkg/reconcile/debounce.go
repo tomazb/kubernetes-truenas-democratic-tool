@@ -41,9 +41,10 @@ func (d *Debouncer) Trigger() {
 		}
 	}
 
-	d.timer = time.AfterFunc(d.delay, func() {
+	var self *time.Timer
+	self = time.AfterFunc(d.delay, func() {
 		d.mu.Lock()
-		if d.stopped {
+		if d.stopped || d.timer != self {
 			d.mu.Unlock()
 			return
 		}
@@ -52,6 +53,7 @@ func (d *Debouncer) Trigger() {
 			d.onFire()
 		}
 	})
+	d.timer = self
 }
 
 // Cancel stops pending debounced callbacks.

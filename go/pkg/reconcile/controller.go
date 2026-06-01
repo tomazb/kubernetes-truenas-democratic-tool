@@ -83,6 +83,9 @@ func (c *Controller) Run(ctx context.Context) error {
 	if tnPoller == nil {
 		tnPoller = NewTruenasPoller(c.truenasPollClient, c.truenasPollInterval)
 	}
+	if c.logger != nil {
+		tnPoller.SetLogger(c.logger)
+	}
 	pollCtx, pollCancel := context.WithCancel(ctx)
 	defer pollCancel()
 
@@ -134,6 +137,11 @@ func (c *Controller) Run(ctx context.Context) error {
 			zap.Error(err),
 		)
 		c.runFullScan(ctx, "full_scan")
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(5 * time.Second):
+		}
 	}
 
 	debouncer.Cancel()

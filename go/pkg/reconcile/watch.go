@@ -62,12 +62,37 @@ func (w *WatchRunner) Run(ctx context.Context) error {
 		return fmt.Errorf("kubernetes clients are required for watch mode")
 	}
 
-	factory := informers.NewSharedInformerFactory(w.clientset, 0)
-	pvInformer := factory.Core().V1().PersistentVolumes().Informer()
-	pvcInformer := factory.Core().V1().PersistentVolumeClaims().Informer()
+	defer w.Stop()
 
-	snapshotFactory := snapshotinformers.NewSharedInformerFactory(w.snapshotClient, 0)
-	vsInformer := snapshotFactory.Snapshot().V1().VolumeSnapshots().Informer()
+	clusterFactory := informers.NewSharedInformerFactory(w.clientset, 0)
+	pvInformer := clusterFactory.Core().V1().PersistentVolumes().Informer()
+
+	var (
+		pvcInformer      cache.SharedIndexInformer
+		vsInformer       cache.SharedIndexInformer
+		namespaceFactory informers.SharedInformerFactory
+		snapshotFactory  snapshotinformers.SharedInformerFactory
+	)
+
+	if w.namespace != "" {
+		namespaceFactory = informers.NewSharedInformerFactoryWithOptions(
+			w.clientset,
+			0,
+			informers.WithNamespace(w.namespace),
+		)
+		pvcInformer = namespaceFactory.Core().V1().PersistentVolumeClaims().Informer()
+
+		snapshotFactory = snapshotinformers.NewSharedInformerFactoryWithOptions(
+			w.snapshotClient,
+			0,
+			snapshotinformers.WithNamespace(w.namespace),
+		)
+		vsInformer = snapshotFactory.Snapshot().V1().VolumeSnapshots().Informer()
+	} else {
+		pvcInformer = clusterFactory.Core().V1().PersistentVolumeClaims().Informer()
+		snapshotFactory = snapshotinformers.NewSharedInformerFactory(w.snapshotClient, 0)
+		vsInformer = snapshotFactory.Snapshot().V1().VolumeSnapshots().Informer()
+	}
 
 	pvHandler := cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ any) { w.trigger("pv") },
@@ -85,20 +110,20 @@ func (w *WatchRunner) Run(ctx context.Context) error {
 		DeleteFunc: func(obj any) { w.onSnapshotEvent(obj) },
 	}
 
-	_, err := pvInformer.AddEventHandler(pvHandler)
-	if err != nil {
+	if _, err := pvInformer.AddEventHandler(pvHandler); err != nil {
 		return err
 	}
-	_, err = pvcInformer.AddEventHandler(pvcHandler)
-	if err != nil {
+	if _, err := pvcInformer.AddEventHandler(pvcHandler); err != nil {
 		return err
 	}
-	_, err = vsInformer.AddEventHandler(vsHandler)
-	if err != nil {
+	if _, err := vsInformer.AddEventHandler(vsHandler); err != nil {
 		return err
 	}
 
-	factory.Start(w.stopCh)
+	clusterFactory.Start(w.stopCh)
+	if namespaceFactory != nil {
+		namespaceFactory.Start(w.stopCh)
+	}
 	snapshotFactory.Start(w.stopCh)
 
 	if !cache.WaitForCacheSync(ctx.Done(), pvInformer.HasSynced, pvcInformer.HasSynced, vsInformer.HasSynced) {
@@ -113,7 +138,6 @@ func (w *WatchRunner) Run(ctx context.Context) error {
 	}
 
 	<-ctx.Done()
-	w.Stop()
 	return ctx.Err()
 }
 

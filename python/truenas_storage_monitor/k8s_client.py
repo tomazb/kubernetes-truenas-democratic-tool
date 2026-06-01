@@ -634,3 +634,43 @@ class K8sClient:
                 }
         finally:
             w.stop()
+
+    def watch_volume_snapshots(
+        self, namespace: Optional[str] = None, timeout_seconds: Optional[int] = None
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Watch VolumeSnapshot custom resources."""
+        w = watch.Watch()
+        group = "snapshot.storage.k8s.io"
+        version = "v1"
+        plural = "volumesnapshots"
+        namespace = namespace or self.config.namespace
+
+        try:
+            if namespace:
+                stream = w.stream(
+                    self.custom_objects.list_namespaced_custom_object,
+                    group=group,
+                    version=version,
+                    namespace=namespace,
+                    plural=plural,
+                    timeout_seconds=timeout_seconds,
+                )
+            else:
+                stream = w.stream(
+                    self.custom_objects.list_cluster_custom_object,
+                    group=group,
+                    version=version,
+                    plural=plural,
+                    timeout_seconds=timeout_seconds,
+                )
+
+            for event in stream:
+                metadata = event["object"]["metadata"]
+                yield {
+                    "type": event["type"],
+                    "name": metadata["name"],
+                    "namespace": metadata.get("namespace"),
+                    "timestamp": utc_now(),
+                }
+        finally:
+            w.stop()
