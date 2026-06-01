@@ -24,9 +24,7 @@ def test_watch_rejects_poll_mode_without_override(mock_load_config):
 @patch("truenas_storage_monitor.cli.Monitor")
 @patch("truenas_storage_monitor.cli.WatchReconciler")
 @patch("truenas_storage_monitor.cli.load_config")
-def test_watch_accepts_mode_override(
-    mock_load_config, mock_reconciler, _mock_monitor
-):
+def test_watch_accepts_mode_override(mock_load_config, mock_reconciler, _mock_monitor):
     runner = CliRunner()
     config = MagicMock()
     config.reconcile_mode = "poll"
