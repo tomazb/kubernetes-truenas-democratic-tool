@@ -97,8 +97,8 @@ Suggested worktree layout:
 
 - **Current phase:** Stage 2 — In Progress (M4 scalability foundation)
 - **Primary owner:** TBD
-- **Last updated:** 2026-05-31
-- **Last merged:** PR 10 TTL inventory cache [#60](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/60) (2026-05-31, `0b9392e`)
+- **Last updated:** 2026-06-02
+- **Last merged:** PR 11 Watch-based incremental reconcile [#61](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/61) (2026-06-02, `063b249`)
 - **Next up:** PR 12 — Performance budgets and cardinality docs
 
 ## Milestones
@@ -374,7 +374,7 @@ Suggested worktree layout:
 
 ### Stage 2: Scalability Foundation
 
-- [ ] Introduce incremental/watch-based detection where practical (PR 11).
+- [x] Introduce incremental/watch-based detection where practical (PR 11).
 - [x] Add caching/TTL for expensive list operations (PR 10).
 - [ ] Define and track performance budgets (scan time, API p95, memory) (PR 12).
 - [x] Wire config thresholds and performance observability baseline (PR 9).
@@ -424,12 +424,15 @@ Suggested worktree layout:
 
 #### PR 11: Watch-Based Incremental Reconcile
 
-- **Status:** In Review
+- **Status:** Done
 - **Risk:** High
 - **Focus:** client-go SharedInformers for PV/PVC/VolumeSnapshot; debounced reconcile; Python watch hook integration.
 - **Branch/worktree:**
-  - Branch: `feature/pr-11-watch-reconcile`
-  - Worktree: `.worktrees/pr-11-watch-reconcile`
+  - Branch: `feature/pr-11-watch-reconcile` (merged; removed)
+  - Worktree: `.worktrees/pr-11-watch-reconcile` (removed)
+- **Merged:** 2026-06-02
+- **Merge commit:** `063b249`
+- **Implementation plan:** `docs/superpowers/plans/2026-06-01-pr-11-watch-reconcile.md`
 - **Depends on:** PR 10
 - **Spec/design:** `docs/superpowers/specs/2026-06-01-pr-11-watch-reconcile-design.md`
 - **Implementation plan:** `docs/superpowers/plans/2026-06-01-pr-11-watch-reconcile.md`
@@ -480,5 +483,5 @@ Suggested worktree layout:
 - [x] Start Stage 2+ initiatives after baseline PRs are merged.
 - [x] Complete PR 9 (config wiring + performance observability).
 - [x] Complete PR 10 (TTL inventory cache).
-- [ ] Complete PR 11 (watch/incremental reconcile).
+- [x] Complete PR 11 (watch/incremental reconcile).
 - [ ] Complete PR 12 (performance budgets).
