@@ -181,6 +181,8 @@ func Load(path string) (*Config, error) {
 		if err := config.validatePerformanceCache(); err != nil {
 			return nil, fmt.Errorf("invalid configuration: %w", err)
 		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to stat config file %q: %w", path, err)
 	}
 
 	config.applyPerformanceDefaults()
