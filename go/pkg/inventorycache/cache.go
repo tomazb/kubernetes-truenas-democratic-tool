@@ -141,6 +141,33 @@ func (c *Cache) set(key string, value any) {
 	}
 }
 
+// InvalidateAll clears every cached entry.
+func (c *Cache) InvalidateAll() {
+	if c == nil || !c.enabled {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = make(map[string]entry)
+}
+
+// InvalidateK8sInventory removes cached Kubernetes list keys.
+func (c *Cache) InvalidateK8sInventory() {
+	if c == nil || !c.enabled {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for key := range c.entries {
+		if len(key) >= 4 && key[:4] == "k8s_" {
+			delete(c.entries, key)
+		}
+	}
+}
+
 // NamespaceKey builds a cache key with optional namespace scope.
 func NamespaceKey(prefix, namespace string) string {
 	if namespace == "" {

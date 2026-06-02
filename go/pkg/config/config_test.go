@@ -37,7 +37,10 @@ truenas:
 				assert.Equal(t, "admin", cfg.TrueNAS.Username)
 				assert.Equal(t, "secret123", cfg.TrueNAS.Password)
 				assert.Equal(t, "30s", cfg.TrueNAS.Timeout)
+				assert.Equal(t, ReconcileModePoll, cfg.Monitor.ReconcileMode)
 				assert.Equal(t, 5*time.Minute, cfg.Monitor.ScanInterval)
+				assert.Equal(t, 30*time.Second, cfg.Monitor.Debounce)
+				assert.Equal(t, 5*time.Minute, cfg.Monitor.TruenasPollInterval)
 				assert.Equal(t, 24*time.Hour, cfg.Monitor.OrphanThreshold)
 				assert.True(t, cfg.Metrics.Enabled)
 				assert.Equal(t, 8080, cfg.Metrics.Port)
@@ -135,6 +138,50 @@ monitor:
 			wantErr: true,
 		},
 		{
+			name: "watch mode config",
+			configYAML: `
+truenas:
+  url: https://truenas.example.com
+  username: admin
+  password: secret123
+monitor:
+  reconcile_mode: watch
+  debounce: 45s
+  truenas_poll_interval: 10m
+`,
+			wantErr: false,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, ReconcileModeWatch, cfg.Monitor.ReconcileMode)
+				assert.Equal(t, 45*time.Second, cfg.Monitor.Debounce)
+				assert.Equal(t, 10*time.Minute, cfg.Monitor.TruenasPollInterval)
+			},
+		},
+		{
+			name: "invalid reconcile mode",
+			configYAML: `
+truenas:
+  url: https://truenas.example.com
+  username: admin
+  password: secret123
+monitor:
+  reconcile_mode: stream
+`,
+			wantErr: true,
+		},
+		{
+			name: "watch mode debounce too short",
+			configYAML: `
+truenas:
+  url: https://truenas.example.com
+  username: admin
+  password: secret123
+monitor:
+  reconcile_mode: watch
+  debounce: 100ms
+`,
+			wantErr: true,
+		},
+		{
 			name: "invalid timeout format",
 			configYAML: `
 truenas:
@@ -190,7 +237,10 @@ func TestLoadNonExistentFile(t *testing.T) {
 	assert.Equal(t, "democratic-csi", cfg.Kubernetes.Namespace)
 	assert.True(t, cfg.Kubernetes.InCluster)
 	assert.Equal(t, "30s", cfg.TrueNAS.Timeout)
+	assert.Equal(t, ReconcileModePoll, cfg.Monitor.ReconcileMode)
 	assert.Equal(t, 5*time.Minute, cfg.Monitor.ScanInterval)
+	assert.Equal(t, 30*time.Second, cfg.Monitor.Debounce)
+	assert.Equal(t, 5*time.Minute, cfg.Monitor.TruenasPollInterval)
 	assert.Equal(t, 24*time.Hour, cfg.Monitor.OrphanThreshold)
 	assert.True(t, cfg.Metrics.Enabled)
 	assert.Equal(t, 8080, cfg.Metrics.Port)
@@ -214,8 +264,11 @@ func TestValidate(t *testing.T) {
 					Timeout:  "30s",
 				},
 				Monitor: MonitorConfig{
-					ScanInterval:    5 * time.Minute,
-					OrphanThreshold: 24 * time.Hour,
+					ReconcileMode:       ReconcileModePoll,
+					ScanInterval:        5 * time.Minute,
+					OrphanThreshold:     24 * time.Hour,
+					Debounce:            30 * time.Second,
+					TruenasPollInterval: 5 * time.Minute,
 				},
 				Metrics: MetricsConfig{
 					Port: 8080,
@@ -240,6 +293,46 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: false,
+		},
+		{
+			name: "watch mode requires debounce",
+			config: &Config{
+				TrueNAS: TrueNASConfig{
+					URL:      "https://truenas.example.com",
+					Username: "admin",
+					Password: "secret123",
+					Timeout:  "30s",
+				},
+				Monitor: MonitorConfig{
+					ReconcileMode:       ReconcileModeWatch,
+					Debounce:            100 * time.Millisecond,
+					TruenasPollInterval: 5 * time.Minute,
+					OrphanThreshold:     24 * time.Hour,
+				},
+				Metrics: MetricsConfig{
+					Port: 8080,
+					Path: "/metrics",
+				},
+				Logging: LoggingConfig{
+					Level:    "info",
+					Encoding: "json",
+				},
+				Security: SecurityConfig{
+					TLSMinVersion:  "1.3",
+					RateLimitRPS:   100,
+					AllowedOrigins: []string{"*"},
+					SessionTimeout: 24 * time.Hour,
+				},
+				Performance: PerformanceConfig{
+					Cache: CacheConfig{
+						Enabled: true,
+						TTL:     5 * time.Minute,
+						MaxSize: 1000,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "monitor.debounce must be at least 1 second",
 		},
 		{
 			name: "cache ttl too short",
@@ -360,6 +453,7 @@ func TestValidate(t *testing.T) {
 					Timeout:  "30s",
 				},
 				Monitor: MonitorConfig{
+					ReconcileMode:   ReconcileModePoll,
 					ScanInterval:    30 * time.Second,
 					OrphanThreshold: 24 * time.Hour,
 				},
@@ -381,6 +475,7 @@ func TestValidate(t *testing.T) {
 					Timeout:  "30s",
 				},
 				Monitor: MonitorConfig{
+					ReconcileMode:   ReconcileModePoll,
 					ScanInterval:    25 * time.Hour,
 					OrphanThreshold: 24 * time.Hour,
 				},
@@ -502,6 +597,7 @@ func TestValidate(t *testing.T) {
 			}
 
 			cfg.applyPerformanceDefaults()
+			cfg.applyMonitorDefaults()
 			err := cfg.validate()
 
 			if tt.wantErr {
@@ -530,7 +626,10 @@ func TestConfigDefaults(t *testing.T) {
 	assert.Equal(t, "30s", cfg.TrueNAS.Timeout)
 
 	// Monitor defaults
+	assert.Equal(t, ReconcileModePoll, cfg.Monitor.ReconcileMode)
 	assert.Equal(t, 5*time.Minute, cfg.Monitor.ScanInterval)
+	assert.Equal(t, 30*time.Second, cfg.Monitor.Debounce)
+	assert.Equal(t, 5*time.Minute, cfg.Monitor.TruenasPollInterval)
 	assert.Equal(t, 24*time.Hour, cfg.Monitor.OrphanThreshold)
 	assert.Equal(t, 30*24*time.Hour, cfg.Monitor.SnapshotRetention)
 
@@ -626,8 +725,11 @@ func validConfigForValidate(t *testing.T) *Config {
 			Timeout:  "30s",
 		},
 		Monitor: MonitorConfig{
-			ScanInterval:    5 * time.Minute,
-			OrphanThreshold: 24 * time.Hour,
+			ReconcileMode:       ReconcileModePoll,
+			ScanInterval:        5 * time.Minute,
+			Debounce:            30 * time.Second,
+			TruenasPollInterval: 5 * time.Minute,
+			OrphanThreshold:     24 * time.Hour,
 		},
 		Metrics: MetricsConfig{
 			Port: 8080,

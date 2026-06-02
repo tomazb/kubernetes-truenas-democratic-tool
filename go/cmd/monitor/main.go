@@ -15,6 +15,7 @@ import (
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/logging"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/metrics"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/monitor"
+	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/reconcile"
 	"github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/truenas"
 	"go.uber.org/zap"
 )
@@ -89,15 +90,34 @@ func main() {
 
 	inventoryCache := inventorycache.NewFromConfig(cfg.Performance, metricsExporter)
 	k8sClient = inventorycache.WrapK8sClient(k8sClient, inventoryCache)
-	truenasClient = inventorycache.WrapTrueNASClient(truenasClient, inventoryCache)
+
+	truenasPollClient := truenasClient
+	truenasForDetector := inventorycache.WrapTrueNASClient(truenasClient, inventoryCache)
+	var tnPoller *reconcile.TruenasPoller
+	if cfg.Monitor.ReconcileMode == config.ReconcileModeWatch {
+		tnPoller = reconcile.NewTruenasPoller(truenasPollClient, cfg.Monitor.TruenasPollInterval)
+		truenasForDetector = reconcile.WrapTruenasWithSnapshot(truenasPollClient, tnPoller)
+	}
 
 	// Initialize monitor service
 	monitorService, err := monitor.NewService(monitor.Config{
-		K8sClient:         k8sClient,
-		TruenasClient:     truenasClient,
-		MetricsExporter:   metricsExporter,
-		Logger:            logger,
-		ScanInterval:      cfg.Monitor.ScanInterval,
+		K8sClient:           k8sClient,
+		TruenasClient:       truenasForDetector,
+		TruenasPollClient:   truenasPollClient,
+		TruenasPoller:       tnPoller,
+		MetricsExporter:     metricsExporter,
+		Logger:              logger,
+		ScanInterval:        cfg.Monitor.ScanInterval,
+		ReconcileMode:       cfg.Monitor.ReconcileMode,
+		Debounce:            cfg.Monitor.Debounce,
+		TruenasPollInterval: cfg.Monitor.TruenasPollInterval,
+		K8sConfig: k8s.Config{
+			Kubeconfig: cfg.Kubernetes.Kubeconfig,
+			Namespace:  cfg.Kubernetes.Namespace,
+			InCluster:  cfg.Kubernetes.InCluster,
+		},
+		Namespace:         cfg.Kubernetes.Namespace,
+		InventoryCache:    inventoryCache,
 		OrphanThreshold:   cfg.Monitor.OrphanThreshold,
 		SnapshotRetention: cfg.Monitor.SnapshotRetention,
 	})
@@ -119,11 +139,20 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	orphanThreshold, snapshotRetention := monitorService.DetectorThresholds()
-	logger.Info("Monitor service started successfully",
-		zap.Duration("scan_interval", cfg.Monitor.ScanInterval),
+	startFields := []zap.Field{
+		zap.String("reconcile_mode", cfg.Monitor.ReconcileMode),
 		zap.Duration("orphan_threshold", orphanThreshold),
 		zap.Duration("snapshot_retention", snapshotRetention),
-	)
+	}
+	if cfg.Monitor.ReconcileMode == config.ReconcileModeWatch {
+		startFields = append(startFields,
+			zap.Duration("debounce", cfg.Monitor.Debounce),
+			zap.Duration("truenas_poll_interval", cfg.Monitor.TruenasPollInterval),
+		)
+	} else {
+		startFields = append(startFields, zap.Duration("scan_interval", cfg.Monitor.ScanInterval))
+	}
+	logger.Info("Monitor service started successfully", startFields...)
 	<-sigChan
 
 	logger.Info("Shutting down monitor service...")

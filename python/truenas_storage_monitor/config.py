@@ -132,6 +132,34 @@ class Config:
         return parse_duration(raw)
 
     @property
+    def reconcile_mode(self) -> str:
+        """Reconcile mode: poll (default) or watch."""
+        raw = str(self.monitoring.get("reconcile_mode", "poll")).strip().lower()
+        if raw not in {"poll", "watch"}:
+            raise ConfigurationError(
+                f"monitoring.reconcile_mode must be 'poll' or 'watch', got {raw!r}"
+            )
+        return raw
+
+    @property
+    def debounce(self) -> timedelta:
+        """Debounced reconcile quiet period for watch mode."""
+        raw = self.monitoring.get("debounce", "30s")
+        value = parse_duration(raw)
+        if value < timedelta(seconds=1):
+            raise ConfigurationError("monitoring.debounce must be at least 1 second")
+        return value
+
+    @property
+    def truenas_poll_interval(self) -> timedelta:
+        """TrueNAS background poll interval for watch mode."""
+        raw = self.monitoring.get("truenas_poll_interval", "5m")
+        value = parse_duration(raw)
+        if value < timedelta(minutes=1):
+            raise ConfigurationError("monitoring.truenas_poll_interval must be at least 1 minute")
+        return value
+
+    @property
     def metrics_enabled(self) -> bool:
         """Whether Prometheus metrics export is enabled."""
         return bool(self.get("metrics.enabled", False))

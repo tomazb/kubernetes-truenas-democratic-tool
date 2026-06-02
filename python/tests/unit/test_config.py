@@ -295,6 +295,24 @@ class TestConfigClass:
         assert config.orphan_threshold == timedelta(hours=48)
         assert config.snapshot_retention == timedelta(days=7)
 
+    def test_reconcile_mode_config_properties(self):
+        """Watch-mode config properties parse and validate."""
+        from datetime import timedelta
+
+        from truenas_storage_monitor.config import Config
+
+        config = Config.__new__(Config)
+        config.data = {
+            "monitoring": {
+                "reconcile_mode": "watch",
+                "debounce": "45s",
+                "truenas_poll_interval": "10m",
+            }
+        }
+        assert config.reconcile_mode == "watch"
+        assert config.debounce == timedelta(seconds=45)
+        assert config.truenas_poll_interval == timedelta(minutes=10)
+
     def test_cache_config_properties(self):
         """Cache config properties coerce and validate values."""
         from datetime import timedelta
