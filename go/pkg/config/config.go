@@ -63,7 +63,8 @@ type MetricsConfig struct {
 
 // PerformanceConfig holds performance tuning settings.
 type PerformanceConfig struct {
-	Cache CacheConfig `yaml:"cache"`
+	Cache   CacheConfig  `yaml:"cache"`
+	Budgets BudgetConfig `yaml:"budgets"`
 }
 
 // CacheConfig holds in-process inventory cache settings.
@@ -71,6 +72,13 @@ type CacheConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	TTL     time.Duration `yaml:"ttl"`
 	MaxSize int           `yaml:"max_size"`
+}
+
+// BudgetConfig holds runtime performance budget settings.
+type BudgetConfig struct {
+	ScanDurationSeconds float64 `yaml:"scan_duration_seconds"`
+	ListPhaseP95Seconds float64 `yaml:"list_phase_p95_seconds"`
+	MemoryRSSMB         int     `yaml:"memory_rss_mb"`
 }
 
 // AlertsConfig holds alerting settings
@@ -93,11 +101,11 @@ type LoggingConfig struct {
 
 // SecurityConfig holds security settings
 type SecurityConfig struct {
-	TLSMinVersion    string `yaml:"tls_min_version"`
-	RequireAuth      bool   `yaml:"require_auth"`
-	AllowedOrigins   []string `yaml:"allowed_origins"`
-	RateLimitRPS     int    `yaml:"rate_limit_rps"`
-	SessionTimeout   time.Duration `yaml:"session_timeout"`
+	TLSMinVersion  string        `yaml:"tls_min_version"`
+	RequireAuth    bool          `yaml:"require_auth"`
+	AllowedOrigins []string      `yaml:"allowed_origins"`
+	RateLimitRPS   int           `yaml:"rate_limit_rps"`
+	SessionTimeout time.Duration `yaml:"session_timeout"`
 }
 
 // Load reads and parses the configuration file
@@ -129,6 +137,11 @@ func Load(path string) (*Config, error) {
 				Enabled: true,
 				TTL:     5 * time.Minute,
 				MaxSize: 1000,
+			},
+			Budgets: BudgetConfig{
+				ScanDurationSeconds: 300,
+				ListPhaseP95Seconds: 2,
+				MemoryRSSMB:         2048,
 			},
 		},
 		Logging: LoggingConfig{
@@ -196,6 +209,15 @@ func (c *Config) applyPerformanceDefaults() {
 	if c.Performance.Cache.MaxSize == 0 {
 		c.Performance.Cache.MaxSize = 1000
 	}
+	if c.Performance.Budgets.ScanDurationSeconds == 0 {
+		c.Performance.Budgets.ScanDurationSeconds = 300
+	}
+	if c.Performance.Budgets.ListPhaseP95Seconds == 0 {
+		c.Performance.Budgets.ListPhaseP95Seconds = 2
+	}
+	if c.Performance.Budgets.MemoryRSSMB == 0 {
+		c.Performance.Budgets.MemoryRSSMB = 2048
+	}
 }
 
 func (c *Config) applyMonitorDefaults() {
@@ -214,25 +236,25 @@ func (c *Config) applyMonitorDefaults() {
 func expandEnvVars(input string) string {
 	// Regex to match ${VAR_NAME} or ${VAR_NAME:default_value}
 	re := regexp.MustCompile(`\$\{([^}:]+)(?::([^}]*))?\}`)
-	
+
 	return re.ReplaceAllStringFunc(input, func(match string) string {
 		// Extract variable name and default value
 		parts := re.FindStringSubmatch(match)
 		if len(parts) < 2 {
 			return match
 		}
-		
+
 		varName := parts[1]
 		defaultValue := ""
 		if len(parts) > 2 {
 			defaultValue = parts[2]
 		}
-		
+
 		// Get environment variable value
 		if value := os.Getenv(varName); value != "" {
 			return value
 		}
-		
+
 		return defaultValue
 	})
 }
@@ -311,6 +333,15 @@ func (c *Config) validate() error {
 
 	if c.Performance.Cache.Enabled && c.Performance.Cache.MaxSize < 1 {
 		return fmt.Errorf("performance.cache.max_size must be at least 1")
+	}
+	if c.Performance.Budgets.ScanDurationSeconds <= 0 {
+		return fmt.Errorf("performance.budgets.scan_duration_seconds must be greater than 0")
+	}
+	if c.Performance.Budgets.ListPhaseP95Seconds <= 0 {
+		return fmt.Errorf("performance.budgets.list_phase_p95_seconds must be greater than 0")
+	}
+	if c.Performance.Budgets.MemoryRSSMB <= 0 {
+		return fmt.Errorf("performance.budgets.memory_rss_mb must be greater than 0")
 	}
 
 	// Logging validation

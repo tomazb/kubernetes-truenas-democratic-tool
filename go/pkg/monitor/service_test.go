@@ -115,3 +115,79 @@ func TestService_UpdateMetrics_RecordsHistogram(t *testing.T) {
 		t.Fatal("phase histogram sample for k8s_pvs not found")
 	}
 }
+
+func TestService_UpdateMetrics_RecordsPerformanceBudgetBreaches(t *testing.T) {
+	logger, err := logging.NewLogger(logging.Config{Level: "error", Encoding: "json"})
+	if err != nil {
+		t.Fatalf("logger: %v", err)
+	}
+
+	exporter := metrics.NewExporter(metrics.Config{Enabled: true, Port: 0, Path: "/metrics"})
+	svc := &Service{
+		logger:               logger,
+		scanInterval:         time.Minute,
+		metricsExporter:      exporter,
+		scanBudgetSeconds:    0.001,
+		listP95BudgetSeconds: 0.001,
+		memoryBudgetMB:       1,
+	}
+
+	svc.updateMetrics(&ScanResult{
+		Timestamp:    time.Now(),
+		ScanDuration: 2 * time.Second,
+		TotalPVs:     3,
+	}, map[string]time.Duration{"k8s_pvs": 500 * time.Millisecond})
+
+	families, err := exporter.GatherForTest()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+
+	var breachMetricFound bool
+	for _, family := range families {
+		if family.GetName() == "truenas_monitor_performance_budget_breaches_total" {
+			breachMetricFound = true
+			if len(family.GetMetric()) == 0 {
+				t.Fatalf("expected breach metrics")
+			}
+		}
+	}
+
+	if !breachMetricFound {
+		t.Fatal("performance budget breach counter not found")
+	}
+}
+
+func BenchmarkService_UpdateMetrics(b *testing.B) {
+	logger, err := logging.NewLogger(logging.Config{Level: "error", Encoding: "json"})
+	if err != nil {
+		b.Fatalf("logger: %v", err)
+	}
+	exporter := metrics.NewExporter(metrics.Config{Enabled: true, Port: 0, Path: "/metrics"})
+	svc := &Service{
+		logger:               logger,
+		metricsExporter:      exporter,
+		scanBudgetSeconds:    300,
+		listP95BudgetSeconds: 2,
+		memoryBudgetMB:       2048,
+	}
+	result := &ScanResult{
+		Timestamp:      time.Now(),
+		ScanDuration:   2 * time.Second,
+		TotalPVs:       1000,
+		TotalPVCs:      1000,
+		TotalSnapshots: 1000,
+	}
+	phaseTimings := map[string]time.Duration{
+		"k8s_pvs":           200 * time.Millisecond,
+		"k8s_pvcs:*":        250 * time.Millisecond,
+		"k8s_snapshots:*":   300 * time.Millisecond,
+		"truenas_datasets":  150 * time.Millisecond,
+		"truenas_snapshots": 175 * time.Millisecond,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		svc.updateMetrics(result, phaseTimings)
+	}
+}
