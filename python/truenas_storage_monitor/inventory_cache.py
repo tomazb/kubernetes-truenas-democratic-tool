@@ -68,6 +68,18 @@ class InventoryCache:
 
         return loaded
 
+    def invalidate_prefix(self, prefix: str) -> None:
+        """Remove cache entries whose keys start with prefix."""
+        with self._lock:
+            keys = [key for key in self._entries if key.startswith(prefix)]
+            for key in keys:
+                del self._entries[key]
+
+    def clear(self) -> None:
+        """Remove all cache entries."""
+        with self._lock:
+            self._entries.clear()
+
 
 def namespace_key(prefix: str, namespace: Optional[str]) -> str:
     """Build a cache key with optional namespace scope."""
