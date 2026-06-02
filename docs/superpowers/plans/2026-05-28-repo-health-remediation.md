@@ -493,6 +493,7 @@ Suggested worktree layout:
 
 ## Execution Notes (2026-06-02)
 
+- PR URL: https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/72
 - Added repository-wide testing strategy artifacts:
   - `docs/testing/test-inventory.md`
   - `docs/testing/staging-test-runbook.md`
