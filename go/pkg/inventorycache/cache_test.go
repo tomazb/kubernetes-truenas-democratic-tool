@@ -8,6 +8,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCache_InvalidateK8sInventory(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	cache := NewCache(Config{
+		Enabled: true,
+		TTL:     time.Minute,
+		MaxSize: 10,
+		Now:     func() time.Time { return now },
+	})
+
+	_, _ = GetOrLoad(cache, "k8s_pvs", "k8s_pvs", func() (string, error) { return "a", nil })
+	_, _ = GetOrLoad(cache, "truenas_datasets", "truenas_datasets", func() (string, error) {
+		return "b", nil
+	})
+
+	cache.InvalidateK8sInventory()
+
+	var loads int32
+	_, err := GetOrLoad(cache, "k8s_pvs", "k8s_pvs", func() (string, error) {
+		atomic.AddInt32(&loads, 1)
+		return "a2", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), loads)
+
+	var tnLoads int32
+	_, err = GetOrLoad(cache, "truenas_datasets", "truenas_datasets", func() (string, error) {
+		atomic.AddInt32(&tnLoads, 1)
+		return "b", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(0), tnLoads)
+}
+
 func TestCache_GetOrLoad_HitAndMiss(t *testing.T) {
 	now := time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
 	var hits, misses int64
