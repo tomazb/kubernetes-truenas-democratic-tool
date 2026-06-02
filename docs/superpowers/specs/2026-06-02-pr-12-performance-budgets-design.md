@@ -56,7 +56,7 @@ Defaults are conservative and aligned to current baseline behavior measured in e
 Use existing monitor/exporter integration points:
 
 - Evaluate scan duration budget on every completed scan.
-- Evaluate list phase duration histograms through a rolling-window approximation for p95 using existing phase histogram streams (without high-cardinality labels).
+- Evaluate list phase duration histograms via bucket interpolation over the exported phase histogram distribution (without high-cardinality labels).
 - Evaluate memory budget from process metrics (RSS) when available from exporter/runtime collector.
 
 On breach:
