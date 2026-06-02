@@ -74,7 +74,7 @@ Add a non-required CI workflow/job that runs a deterministic benchmark command (
 - Job outcome:
   - Success with warnings in logs/artifact when over budget.
   - Does not block merge (soft gate).
-- The report includes: scan duration summary, list-phase p95 summary, memory peak summary, and pass/warn status per budget.
+- The report includes benchmark thresholds and observations (`ns_per_op`, `bytes_per_op`) plus an overall pass/warn status for the soft gate.
 
 ### Documentation update
 

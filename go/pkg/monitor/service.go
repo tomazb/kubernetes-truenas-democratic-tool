@@ -3,7 +3,11 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"os"
+	"regexp"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -395,8 +399,9 @@ func (s *Service) evaluatePerformanceBudgets(result *ScanResult, phaseTimings ma
 	}
 
 	if s.listP95BudgetSeconds > 0 {
+		p95s := s.metricsExporter.EstimateListPhasesP95()
 		for phase := range phaseTimings {
-			p95, ok := s.metricsExporter.EstimateListPhaseP95(phase)
+			p95, ok := p95s[phase]
 			if !ok {
 				continue
 			}
@@ -413,17 +418,35 @@ func (s *Service) evaluatePerformanceBudgets(result *ScanResult, phaseTimings ma
 	}
 
 	if s.memoryBudgetMB > 0 {
-		var mem runtime.MemStats
-		runtime.ReadMemStats(&mem)
-		observedMB := float64(mem.Sys) / (1024 * 1024)
+		observedMB, source := readProcessMemoryMB()
 		threshold := float64(s.memoryBudgetMB)
 		breached := observedMB > threshold
 		s.metricsExporter.RecordPerformanceBudgetStatus("memory_rss_mb", "all", breached, now)
 		if breached {
 			s.logger.Warn("memory budget exceeded",
+				zap.String("measurement_source", source),
 				zap.Float64("observed_mb", observedMB),
 				zap.Float64("threshold_mb", threshold),
 			)
 		}
 	}
+}
+
+var vmRSSPattern = regexp.MustCompile(`(?m)^VmRSS:\s+(\d+)\s+kB$`)
+
+func readProcessMemoryMB() (float64, string) {
+	// Use Linux VmRSS when available to match the memory_rss_mb contract.
+	if data, err := os.ReadFile("/proc/self/status"); err == nil {
+		matches := vmRSSPattern.FindStringSubmatch(string(data))
+		if len(matches) == 2 {
+			if kb, convErr := strconv.ParseFloat(strings.TrimSpace(matches[1]), 64); convErr == nil {
+				return kb / 1024.0, "proc_vm_rss"
+			}
+		}
+	}
+
+	// Fallback for non-Linux platforms: runtime-reported memory reservation.
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	return float64(mem.Sys) / (1024 * 1024), "runtime_memstats_sys_fallback"
 }

@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -359,32 +360,33 @@ func (e *Exporter) GatherForTest() ([]*dto.MetricFamily, error) {
 	return e.registry.Gather()
 }
 
-// EstimateListPhaseP95 estimates p95 list latency for a phase from histogram buckets.
-func (e *Exporter) EstimateListPhaseP95(phase string) (float64, bool) {
+// EstimateListPhasesP95 estimates p95 list latency for all phases from histogram buckets.
+func (e *Exporter) EstimateListPhasesP95() map[string]float64 {
+	results := make(map[string]float64)
 	families, err := e.registry.Gather()
 	if err != nil {
-		return 0, false
+		return results
 	}
 	for _, family := range families {
 		if family.GetName() != "truenas_monitor_list_duration_seconds" {
 			continue
 		}
 		for _, metric := range family.GetMetric() {
-			matches := false
+			phase := ""
 			for _, label := range metric.GetLabel() {
-				if label.GetName() == "phase" && label.GetValue() == phase {
-					matches = true
+				if label.GetName() == "phase" {
+					phase = label.GetValue()
 					break
 				}
 			}
-			if !matches {
+			if phase == "" {
 				continue
 			}
 
 			h := metric.GetHistogram()
 			count := h.GetSampleCount()
 			if count == 0 {
-				return 0, false
+				continue
 			}
 			target := 0.95 * float64(count)
 			prevCount := 0.0
@@ -393,18 +395,38 @@ func (e *Exporter) EstimateListPhaseP95(phase string) (float64, bool) {
 				upper := bucket.GetUpperBound()
 				cumulative := float64(bucket.GetCumulativeCount())
 				if cumulative >= target {
+					if math.IsInf(upper, 1) {
+						results[phase] = math.Inf(1)
+						break
+					}
 					segmentCount := cumulative - prevCount
 					if segmentCount <= 0 {
-						return upper, true
+						results[phase] = upper
+						break
 					}
 					pos := (target - prevCount) / segmentCount
-					return prevBound + pos*(upper-prevBound), true
+					results[phase] = prevBound + pos*(upper-prevBound)
+					break
 				}
 				prevCount = cumulative
 				prevBound = upper
 			}
-			return prevBound, true
+			if _, ok := results[phase]; !ok {
+				// If target wasn't reached by any finite bucket, latency exceeds configured range.
+				if prevCount < target {
+					results[phase] = math.Inf(1)
+				} else {
+					results[phase] = prevBound
+				}
+			}
 		}
 	}
-	return 0, false
+	return results
+}
+
+// EstimateListPhaseP95 estimates p95 list latency for a phase from histogram buckets.
+func (e *Exporter) EstimateListPhaseP95(phase string) (float64, bool) {
+	p95s := e.EstimateListPhasesP95()
+	p95, ok := p95s[phase]
+	return p95, ok
 }

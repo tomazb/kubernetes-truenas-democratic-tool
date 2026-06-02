@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -153,5 +154,30 @@ func TestExporter_EstimateListPhaseP95(t *testing.T) {
 
 	p95, ok := exporter.EstimateListPhaseP95("k8s_pvs")
 	require.True(t, ok)
-	require.Greater(t, p95, 0.0)
+	require.InDelta(t, 0.25, p95, 0.05)
+}
+
+func TestExporter_EstimateListPhasesP95(t *testing.T) {
+	exporter := NewExporter(Config{Enabled: true, Port: 0, Path: "/metrics"})
+	for i := 0; i < 20; i++ {
+		exporter.ObserveListPhaseDuration("k8s_pvs", 0.2)
+	}
+	exporter.ObserveListPhaseDuration("k8s_pvs", 3.0)
+
+	p95s := exporter.EstimateListPhasesP95()
+	p95, ok := p95s["k8s_pvs"]
+	require.True(t, ok)
+	require.InDelta(t, 0.25, p95, 0.05)
+}
+
+func TestExporter_EstimateListPhasesP95_ReturnsInfinityForOverflow(t *testing.T) {
+	exporter := NewExporter(Config{Enabled: true, Port: 0, Path: "/metrics"})
+	for i := 0; i < 21; i++ {
+		exporter.ObserveListPhaseDuration("k8s_pvs", 120.0)
+	}
+
+	p95s := exporter.EstimateListPhasesP95()
+	p95, ok := p95s["k8s_pvs"]
+	require.True(t, ok)
+	require.True(t, math.IsInf(p95, 1))
 }

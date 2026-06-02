@@ -12,7 +12,6 @@ jobs:
   perf-budget-benchmark:
     name: Perf budget benchmark (warn only)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,9 +23,11 @@ jobs:
 
       - name: Run benchmark soft gate
         run: bash scripts/perf-budget-benchmark.sh perf-budget-report.txt
+        continue-on-error: true
 
       - name: Upload benchmark report
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: perf-budget-report
           path: perf-budget-report.txt

@@ -23,11 +23,21 @@ fi
 NS_PER_OP="$(printf '%s\n' "$BENCH_LINE" | awk '{for(i=1;i<=NF;i++){if($i ~ /ns\/op$/){print $(i-1); exit}}}')"
 BYTES_PER_OP="$(printf '%s\n' "$BENCH_LINE" | awk '{for(i=1;i<=NF;i++){if($i ~ /B\/op$/){print $(i-1); exit}}}')"
 
+if [[ -z "$NS_PER_OP" ]] || [[ -z "$BYTES_PER_OP" ]]; then
+  echo "WARN: could not parse benchmark metrics from output; marking as warn" >&2
+fi
+
+NS_PER_OP_INT="${NS_PER_OP%.*}"
+BYTES_PER_OP_INT="${BYTES_PER_OP%.*}"
+
 status="pass"
-if [[ -n "$NS_PER_OP" ]] && (( NS_PER_OP > MAX_NS_PER_OP )); then
+if [[ "$NS_PER_OP_INT" =~ ^[0-9]+$ ]] && (( NS_PER_OP_INT > MAX_NS_PER_OP )); then
   status="warn"
 fi
-if [[ -n "$BYTES_PER_OP" ]] && (( BYTES_PER_OP > MAX_BYTES_PER_OP )); then
+if [[ "$BYTES_PER_OP_INT" =~ ^[0-9]+$ ]] && (( BYTES_PER_OP_INT > MAX_BYTES_PER_OP )); then
+  status="warn"
+fi
+if [[ ! "$NS_PER_OP_INT" =~ ^[0-9]+$ ]] || [[ ! "$BYTES_PER_OP_INT" =~ ^[0-9]+$ ]]; then
   status="warn"
 fi
 
