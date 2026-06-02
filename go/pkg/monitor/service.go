@@ -3,6 +3,11 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"os"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,20 +25,23 @@ import (
 
 // Service represents the monitoring service
 type Service struct {
-	k8sClient       k8s.Client
-	truenasClient   truenas.Client
-	metricsExporter *metrics.Exporter
-	logger          *logging.Logger
-	scanInterval        time.Duration
-	reconcileMode       string
-	debounce            time.Duration
-	truenasPollInterval time.Duration
-	k8sConfig           k8s.Config
-	namespace           string
-	inventoryCache      *inventorycache.Cache
-	truenasPollClient   truenas.Client
-	truenasPoller       *reconcile.TruenasPoller
-	orphanDetector      *orphan.Detector
+	k8sClient            k8s.Client
+	truenasClient        truenas.Client
+	metricsExporter      *metrics.Exporter
+	logger               *logging.Logger
+	scanInterval         time.Duration
+	reconcileMode        string
+	debounce             time.Duration
+	truenasPollInterval  time.Duration
+	k8sConfig            k8s.Config
+	namespace            string
+	inventoryCache       *inventorycache.Cache
+	truenasPollClient    truenas.Client
+	truenasPoller        *reconcile.TruenasPoller
+	orphanDetector       *orphan.Detector
+	scanBudgetSeconds    float64
+	listP95BudgetSeconds float64
+	memoryBudgetMB       int
 
 	// Internal state
 	mu             sync.RWMutex
@@ -45,21 +53,24 @@ type Service struct {
 
 // Config holds the service configuration
 type Config struct {
-	K8sClient         k8s.Client
-	TruenasClient     truenas.Client
-	MetricsExporter   *metrics.Exporter
-	Logger            *logging.Logger
-	ScanInterval        time.Duration
-	ReconcileMode       string
-	Debounce            time.Duration
-	TruenasPollInterval time.Duration
-	K8sConfig           k8s.Config
-	Namespace           string
-	InventoryCache      *inventorycache.Cache
-	TruenasPollClient   truenas.Client
-	TruenasPoller       *reconcile.TruenasPoller
-	OrphanThreshold     time.Duration
-	SnapshotRetention   time.Duration
+	K8sClient            k8s.Client
+	TruenasClient        truenas.Client
+	MetricsExporter      *metrics.Exporter
+	Logger               *logging.Logger
+	ScanInterval         time.Duration
+	ReconcileMode        string
+	Debounce             time.Duration
+	TruenasPollInterval  time.Duration
+	K8sConfig            k8s.Config
+	Namespace            string
+	InventoryCache       *inventorycache.Cache
+	TruenasPollClient    truenas.Client
+	TruenasPoller        *reconcile.TruenasPoller
+	OrphanThreshold      time.Duration
+	SnapshotRetention    time.Duration
+	ScanBudgetSeconds    float64
+	ListP95BudgetSeconds float64
+	MemoryBudgetMB       int
 }
 
 // OrphanedResource represents an orphaned resource
@@ -75,14 +86,14 @@ type OrphanedResource struct {
 
 // ScanResult represents the result of a monitoring scan
 type ScanResult struct {
-	Timestamp        time.Time           `json:"timestamp"`
-	OrphanedPVs      []OrphanedResource  `json:"orphaned_pvs"`
-	OrphanedPVCs     []OrphanedResource  `json:"orphaned_pvcs"`
+	Timestamp         time.Time          `json:"timestamp"`
+	OrphanedPVs       []OrphanedResource `json:"orphaned_pvs"`
+	OrphanedPVCs      []OrphanedResource `json:"orphaned_pvcs"`
 	OrphanedSnapshots []OrphanedResource `json:"orphaned_snapshots"`
-	TotalPVs         int                 `json:"total_pvs"`
-	TotalPVCs        int                 `json:"total_pvcs"`
-	TotalSnapshots   int                 `json:"total_snapshots"`
-	ScanDuration     time.Duration       `json:"scan_duration"`
+	TotalPVs          int                `json:"total_pvs"`
+	TotalPVCs         int                `json:"total_pvcs"`
+	TotalSnapshots    int                `json:"total_snapshots"`
+	ScanDuration      time.Duration      `json:"scan_duration"`
 }
 
 // NewService creates a new monitoring service
@@ -116,21 +127,24 @@ func NewService(config Config) (*Service, error) {
 	}
 
 	return &Service{
-		k8sClient:           config.K8sClient,
-		truenasClient:       config.TruenasClient,
-		metricsExporter:     config.MetricsExporter,
-		logger:              config.Logger,
-		scanInterval:        config.ScanInterval,
-		reconcileMode:       reconcileMode,
-		debounce:            config.Debounce,
-		truenasPollInterval: config.TruenasPollInterval,
-		k8sConfig:           config.K8sConfig,
-		namespace:           config.Namespace,
-		inventoryCache:      config.InventoryCache,
-		truenasPollClient:   config.TruenasPollClient,
-		truenasPoller:       config.TruenasPoller,
-		orphanDetector:      orphanDetector,
-		stopChan:            make(chan struct{}),
+		k8sClient:            config.K8sClient,
+		truenasClient:        config.TruenasClient,
+		metricsExporter:      config.MetricsExporter,
+		logger:               config.Logger,
+		scanInterval:         config.ScanInterval,
+		reconcileMode:        reconcileMode,
+		debounce:             config.Debounce,
+		truenasPollInterval:  config.TruenasPollInterval,
+		k8sConfig:            config.K8sConfig,
+		namespace:            config.Namespace,
+		inventoryCache:       config.InventoryCache,
+		truenasPollClient:    config.TruenasPollClient,
+		truenasPoller:        config.TruenasPoller,
+		orphanDetector:       orphanDetector,
+		scanBudgetSeconds:    config.ScanBudgetSeconds,
+		listP95BudgetSeconds: config.ListP95BudgetSeconds,
+		memoryBudgetMB:       config.MemoryBudgetMB,
+		stopChan:             make(chan struct{}),
 	}, nil
 }
 
@@ -248,8 +262,8 @@ func (s *Service) watchLoop(ctx context.Context) {
 		InventoryCache:      s.inventoryCache,
 		Metrics:             s.metricsExporter,
 		Logger:              s.logger,
-		TruenasPollClient: pollClient,
-		TruenasPoller:     s.truenasPoller,
+		TruenasPollClient:   pollClient,
+		TruenasPoller:       s.truenasPoller,
 	})
 
 	if err := controller.Run(ctx); err != nil && ctx.Err() == nil {
@@ -363,4 +377,76 @@ func (s *Service) updateMetrics(result *ScanResult, phaseTimings map[string]time
 	s.metricsExporter.SetTotalPVCs(float64(result.TotalPVCs))
 	s.metricsExporter.SetTotalSnapshots(float64(result.TotalSnapshots))
 	s.metricsExporter.SetLastScanTimestamp(result.Timestamp)
+	s.evaluatePerformanceBudgets(result, phaseTimings)
+}
+
+func (s *Service) evaluatePerformanceBudgets(result *ScanResult, phaseTimings map[string]time.Duration) {
+	now := result.Timestamp
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	if s.scanBudgetSeconds > 0 {
+		observed := result.ScanDuration.Seconds()
+		breached := observed > s.scanBudgetSeconds
+		s.metricsExporter.RecordPerformanceBudgetStatus("scan_duration", "all", breached, now)
+		if breached {
+			s.logger.Warn("scan duration budget exceeded",
+				zap.Float64("observed_seconds", observed),
+				zap.Float64("threshold_seconds", s.scanBudgetSeconds),
+			)
+		}
+	}
+
+	if s.listP95BudgetSeconds > 0 {
+		p95s := s.metricsExporter.EstimateListPhasesP95()
+		for phase := range phaseTimings {
+			p95, ok := p95s[phase]
+			if !ok {
+				continue
+			}
+			breached := p95 > s.listP95BudgetSeconds
+			s.metricsExporter.RecordPerformanceBudgetStatus("list_phase_p95", phase, breached, now)
+			if breached {
+				s.logger.Warn("list phase p95 budget exceeded",
+					zap.String("phase", phase),
+					zap.Float64("observed_seconds", p95),
+					zap.Float64("threshold_seconds", s.listP95BudgetSeconds),
+				)
+			}
+		}
+	}
+
+	if s.memoryBudgetMB > 0 {
+		observedMB, source := readProcessMemoryMB()
+		threshold := float64(s.memoryBudgetMB)
+		breached := observedMB > threshold
+		s.metricsExporter.RecordPerformanceBudgetStatus("memory_rss_mb", "all", breached, now)
+		if breached {
+			s.logger.Warn("memory budget exceeded",
+				zap.String("measurement_source", source),
+				zap.Float64("observed_mb", observedMB),
+				zap.Float64("threshold_mb", threshold),
+			)
+		}
+	}
+}
+
+var vmRSSPattern = regexp.MustCompile(`(?m)^VmRSS:\s+(\d+)\s+kB$`)
+
+func readProcessMemoryMB() (float64, string) {
+	// Use Linux VmRSS when available to match the memory_rss_mb contract.
+	if data, err := os.ReadFile("/proc/self/status"); err == nil {
+		matches := vmRSSPattern.FindStringSubmatch(string(data))
+		if len(matches) == 2 {
+			if kb, convErr := strconv.ParseFloat(strings.TrimSpace(matches[1]), 64); convErr == nil {
+				return kb / 1024.0, "proc_vm_rss"
+			}
+		}
+	}
+
+	// Fallback for non-Linux platforms: runtime-reported memory reservation.
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	return float64(mem.Sys) / (1024 * 1024), "runtime_memstats_sys_fallback"
 }

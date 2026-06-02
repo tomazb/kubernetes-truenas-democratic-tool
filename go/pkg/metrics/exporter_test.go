@@ -1,7 +1,9 @@
 package metrics
 
 import (
+	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -114,4 +116,68 @@ func TestExporter_ReconcileMetrics(t *testing.T) {
 	require.Equal(t, float64(1), watchMode)
 	require.Equal(t, float64(0), pollMode)
 	require.InDelta(t, 12.5, snapshotAge, 0.001)
+}
+
+func TestExporter_RecordPerformanceBudgetStatus(t *testing.T) {
+	exporter := NewExporter(Config{Enabled: true, Port: 0, Path: "/metrics"})
+	now := time.Unix(1_700_000_000, 0)
+
+	exporter.RecordPerformanceBudgetStatus("scan_duration", "all", false, now)
+	exporter.RecordPerformanceBudgetStatus("scan_duration", "all", true, now)
+
+	families, err := exporter.registry.Gather()
+	require.NoError(t, err)
+
+	var breaches, status, lastBreach float64
+	for _, family := range families {
+		switch family.GetName() {
+		case "truenas_monitor_performance_budget_breaches_total":
+			breaches = family.GetMetric()[0].GetCounter().GetValue()
+		case "truenas_monitor_performance_budget_status":
+			status = family.GetMetric()[0].GetGauge().GetValue()
+		case "truenas_monitor_performance_budget_last_breach_timestamp":
+			lastBreach = family.GetMetric()[0].GetGauge().GetValue()
+		}
+	}
+
+	require.Equal(t, float64(1), breaches)
+	require.Equal(t, float64(1), status)
+	require.Equal(t, float64(now.Unix()), lastBreach)
+}
+
+func TestExporter_EstimateListPhaseP95(t *testing.T) {
+	exporter := NewExporter(Config{Enabled: true, Port: 0, Path: "/metrics"})
+	for i := 0; i < 20; i++ {
+		exporter.ObserveListPhaseDuration("k8s_pvs", 0.2)
+	}
+	exporter.ObserveListPhaseDuration("k8s_pvs", 3.0)
+
+	p95, ok := exporter.EstimateListPhaseP95("k8s_pvs")
+	require.True(t, ok)
+	require.InDelta(t, 0.25, p95, 0.05)
+}
+
+func TestExporter_EstimateListPhasesP95(t *testing.T) {
+	exporter := NewExporter(Config{Enabled: true, Port: 0, Path: "/metrics"})
+	for i := 0; i < 20; i++ {
+		exporter.ObserveListPhaseDuration("k8s_pvs", 0.2)
+	}
+	exporter.ObserveListPhaseDuration("k8s_pvs", 3.0)
+
+	p95s := exporter.EstimateListPhasesP95()
+	p95, ok := p95s["k8s_pvs"]
+	require.True(t, ok)
+	require.InDelta(t, 0.25, p95, 0.05)
+}
+
+func TestExporter_EstimateListPhasesP95_ReturnsInfinityForOverflow(t *testing.T) {
+	exporter := NewExporter(Config{Enabled: true, Port: 0, Path: "/metrics"})
+	for i := 0; i < 21; i++ {
+		exporter.ObserveListPhaseDuration("k8s_pvs", 120.0)
+	}
+
+	p95s := exporter.EstimateListPhasesP95()
+	p95, ok := p95s["k8s_pvs"]
+	require.True(t, ok)
+	require.True(t, math.IsInf(p95, 1))
 }

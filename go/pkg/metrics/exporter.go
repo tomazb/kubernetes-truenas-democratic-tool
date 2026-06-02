@@ -3,12 +3,13 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
-	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/zap"
 )
 
@@ -19,23 +20,26 @@ type Exporter struct {
 	logger   *zap.Logger
 
 	// Metrics
-	orphanedPVsCount       prometheus.Gauge
-	orphanedPVCsCount      prometheus.Gauge
-	orphanedSnapshotsCount prometheus.Gauge
-	scanDuration           prometheus.Gauge
-	scanDurationHist       prometheus.Histogram
-	listDurationHist       *prometheus.HistogramVec
-	cacheHits              *prometheus.CounterVec
-	cacheMisses            *prometheus.CounterVec
-	reconcileMode          *prometheus.GaugeVec
-	watchEvents            *prometheus.CounterVec
-	reconcileTriggers      *prometheus.CounterVec
-	truenasSnapshotAge     prometheus.Gauge
-	totalPVs               prometheus.Gauge
-	totalPVCs              prometheus.Gauge
-	totalSnapshots         prometheus.Gauge
-	storageEfficiency      prometheus.Gauge
-	lastScanTimestamp      prometheus.Gauge
+	orphanedPVsCount            prometheus.Gauge
+	orphanedPVCsCount           prometheus.Gauge
+	orphanedSnapshotsCount      prometheus.Gauge
+	scanDuration                prometheus.Gauge
+	scanDurationHist            prometheus.Histogram
+	listDurationHist            *prometheus.HistogramVec
+	cacheHits                   *prometheus.CounterVec
+	cacheMisses                 *prometheus.CounterVec
+	performanceBudgetBreaches   *prometheus.CounterVec
+	performanceBudgetStatus     *prometheus.GaugeVec
+	performanceBudgetLastBreach *prometheus.GaugeVec
+	reconcileMode               *prometheus.GaugeVec
+	watchEvents                 *prometheus.CounterVec
+	reconcileTriggers           *prometheus.CounterVec
+	truenasSnapshotAge          prometheus.Gauge
+	totalPVs                    prometheus.Gauge
+	totalPVCs                   prometheus.Gauge
+	totalSnapshots              prometheus.Gauge
+	storageEfficiency           prometheus.Gauge
+	lastScanTimestamp           prometheus.Gauge
 }
 
 var scanDurationBuckets = []float64{0.5, 1, 2, 5, 10, 30, 60, 120}
@@ -52,7 +56,7 @@ type Config struct {
 // NewExporter creates a new metrics exporter
 func NewExporter(config Config) *Exporter {
 	registry := prometheus.NewRegistry()
-	
+
 	// Create metrics
 	orphanedPVsCount := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "truenas_monitor_orphaned_pvs_total",
@@ -95,6 +99,21 @@ func NewExporter(config Config) *Exporter {
 		Name: "truenas_monitor_inventory_cache_misses_total",
 		Help: "Inventory cache misses by operation",
 	}, []string{"operation"})
+
+	performanceBudgetBreaches := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "truenas_monitor_performance_budget_breaches_total",
+		Help: "Performance budget breaches by budget and phase",
+	}, []string{"budget", "phase"})
+
+	performanceBudgetStatus := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "truenas_monitor_performance_budget_status",
+		Help: "Current budget status (0=healthy, 1=breached)",
+	}, []string{"budget", "phase"})
+
+	performanceBudgetLastBreach := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "truenas_monitor_performance_budget_last_breach_timestamp",
+		Help: "Unix timestamp of the most recent budget breach",
+	}, []string{"budget", "phase"})
 
 	reconcileMode := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "truenas_monitor_reconcile_mode",
@@ -151,6 +170,9 @@ func NewExporter(config Config) *Exporter {
 		listDurationHist,
 		cacheHits,
 		cacheMisses,
+		performanceBudgetBreaches,
+		performanceBudgetStatus,
+		performanceBudgetLastBreach,
 		reconcileMode,
 		watchEvents,
 		reconcileTriggers,
@@ -180,26 +202,29 @@ func NewExporter(config Config) *Exporter {
 	logger, _ := zap.NewProduction()
 
 	return &Exporter{
-		server:                 server,
-		registry:               registry,
-		logger:                 logger,
-		orphanedPVsCount:       orphanedPVsCount,
-		orphanedPVCsCount:      orphanedPVCsCount,
-		orphanedSnapshotsCount: orphanedSnapshotsCount,
-		scanDuration:           scanDuration,
-		scanDurationHist:       scanDurationHist,
-		listDurationHist:       listDurationHist,
-		cacheHits:              cacheHits,
-		cacheMisses:            cacheMisses,
-		reconcileMode:          reconcileMode,
-		watchEvents:            watchEvents,
-		reconcileTriggers:      reconcileTriggers,
-		truenasSnapshotAge:     truenasSnapshotAge,
-		totalPVs:               totalPVs,
-		totalPVCs:              totalPVCs,
-		totalSnapshots:         totalSnapshots,
-		storageEfficiency:      storageEfficiency,
-		lastScanTimestamp:      lastScanTimestamp,
+		server:                      server,
+		registry:                    registry,
+		logger:                      logger,
+		orphanedPVsCount:            orphanedPVsCount,
+		orphanedPVCsCount:           orphanedPVCsCount,
+		orphanedSnapshotsCount:      orphanedSnapshotsCount,
+		scanDuration:                scanDuration,
+		scanDurationHist:            scanDurationHist,
+		listDurationHist:            listDurationHist,
+		cacheHits:                   cacheHits,
+		cacheMisses:                 cacheMisses,
+		performanceBudgetBreaches:   performanceBudgetBreaches,
+		performanceBudgetStatus:     performanceBudgetStatus,
+		performanceBudgetLastBreach: performanceBudgetLastBreach,
+		reconcileMode:               reconcileMode,
+		watchEvents:                 watchEvents,
+		reconcileTriggers:           reconcileTriggers,
+		truenasSnapshotAge:          truenasSnapshotAge,
+		totalPVs:                    totalPVs,
+		totalPVCs:                   totalPVCs,
+		totalSnapshots:              totalSnapshots,
+		storageEfficiency:           storageEfficiency,
+		lastScanTimestamp:           lastScanTimestamp,
 	}
 }
 
@@ -291,6 +316,20 @@ func (e *Exporter) RecordInventoryCacheAccess(operation string, hit bool) {
 	e.cacheMisses.WithLabelValues(operation).Inc()
 }
 
+// RecordPerformanceBudgetStatus updates budget status and records breaches.
+func (e *Exporter) RecordPerformanceBudgetStatus(budget, phase string, breached bool, at time.Time) {
+	if phase == "" {
+		phase = "all"
+	}
+	status := 0.0
+	if breached {
+		status = 1.0
+		e.performanceBudgetBreaches.WithLabelValues(budget, phase).Inc()
+		e.performanceBudgetLastBreach.WithLabelValues(budget, phase).Set(float64(at.Unix()))
+	}
+	e.performanceBudgetStatus.WithLabelValues(budget, phase).Set(status)
+}
+
 // SetTotalPVs sets the total PVs metric
 func (e *Exporter) SetTotalPVs(count float64) {
 	e.totalPVs.Set(count)
@@ -319,4 +358,75 @@ func (e *Exporter) SetLastScanTimestamp(timestamp time.Time) {
 // GatherForTest exposes registered metrics for unit tests.
 func (e *Exporter) GatherForTest() ([]*dto.MetricFamily, error) {
 	return e.registry.Gather()
+}
+
+// EstimateListPhasesP95 estimates p95 list latency for all phases from histogram buckets.
+func (e *Exporter) EstimateListPhasesP95() map[string]float64 {
+	results := make(map[string]float64)
+	families, err := e.registry.Gather()
+	if err != nil {
+		return results
+	}
+	for _, family := range families {
+		if family.GetName() != "truenas_monitor_list_duration_seconds" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			phase := ""
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "phase" {
+					phase = label.GetValue()
+					break
+				}
+			}
+			if phase == "" {
+				continue
+			}
+
+			h := metric.GetHistogram()
+			count := h.GetSampleCount()
+			if count == 0 {
+				continue
+			}
+			target := 0.95 * float64(count)
+			prevCount := 0.0
+			prevBound := 0.0
+			for _, bucket := range h.GetBucket() {
+				upper := bucket.GetUpperBound()
+				cumulative := float64(bucket.GetCumulativeCount())
+				if cumulative >= target {
+					if math.IsInf(upper, 1) {
+						results[phase] = math.Inf(1)
+						break
+					}
+					segmentCount := cumulative - prevCount
+					if segmentCount <= 0 {
+						results[phase] = upper
+						break
+					}
+					pos := (target - prevCount) / segmentCount
+					results[phase] = prevBound + pos*(upper-prevBound)
+					break
+				}
+				prevCount = cumulative
+				prevBound = upper
+			}
+			if _, ok := results[phase]; !ok {
+				// If target wasn't reached by any finite bucket, latency exceeds configured range.
+				if prevCount < target {
+					results[phase] = math.Inf(1)
+				} else {
+					results[phase] = prevBound
+				}
+			}
+		}
+	}
+	return results
+}
+
+// EstimateListPhaseP95 estimates p95 list latency for a phase from histogram buckets.
+func (e *Exporter) EstimateListPhaseP95(phase string) (float64, bool) {
+	p95s := e.EstimateListPhasesP95()
+	p95, ok := p95s[phase]
+	return p95, ok
 }

@@ -37,6 +37,10 @@ performance:
     enabled: true
     ttl: 5m
     max_size: 1000
+  budgets:
+    scan_duration_seconds: 300
+    list_phase_p95_seconds: 2
+    memory_rss_mb: 2048
 
 alerts:
   slack:

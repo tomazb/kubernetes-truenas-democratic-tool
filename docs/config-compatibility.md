@@ -29,6 +29,7 @@ Go services and the Python library/CLI use **different YAML schemas**. A single 
 | Slack alerts | `alerts.slack.webhook` | `alerts.slack.webhook_url` |
 | Metrics | `metrics.enabled`, `metrics.port`, `metrics.path` — Go monitor exports gauges + histograms | `metrics.enabled` in defaults enables optional Python Prometheus scan metrics; structured phase timing logs always emitted |
 | Inventory cache | `performance.cache.enabled`, `performance.cache.ttl`, `performance.cache.max_size` — **wired** in Go monitor and API | `performance.cache.*` — **wired** in Python clients when `performance.cache.enabled` is true (defaults enable 5m TTL) |
+| Performance budgets | `performance.budgets.scan_duration_seconds`, `performance.budgets.list_phase_p95_seconds`, `performance.budgets.memory_rss_mb` — **wired** in Go monitor warnings/metrics | Present in shared examples for alignment, currently **ignored** by Python runtime |
 | Logging | `logging.level`, `logging.encoding` | `logging.level`, `logging.format` in example only |
 | API server listen/TLS | Not in Go config file (CLI flags) | `api:` block in Python example is **planned**, not read today |
 | API auth / security block | `security:` keys parsed in Go config but **not enforced** by shipped API server | Not applicable |

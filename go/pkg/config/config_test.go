@@ -45,6 +45,9 @@ truenas:
 				assert.True(t, cfg.Metrics.Enabled)
 				assert.Equal(t, 8080, cfg.Metrics.Port)
 				assert.Equal(t, "/metrics", cfg.Metrics.Path)
+				assert.Equal(t, float64(300), cfg.Performance.Budgets.ScanDurationSeconds)
+				assert.Equal(t, float64(2), cfg.Performance.Budgets.ListPhaseP95Seconds)
+				assert.Equal(t, 2048, cfg.Performance.Budgets.MemoryRSSMB)
 			},
 		},
 		{
@@ -228,11 +231,11 @@ truenas:
 func TestLoadNonExistentFile(t *testing.T) {
 	// Test loading non-existent file should use defaults
 	cfg, err := Load("/non/existent/file.yaml")
-	
+
 	// Should not error, should use defaults
 	assert.NoError(t, err)
 	assert.NotNil(t, cfg)
-	
+
 	// Check defaults are applied
 	assert.Equal(t, "democratic-csi", cfg.Kubernetes.Namespace)
 	assert.True(t, cfg.Kubernetes.InCluster)
@@ -637,6 +640,18 @@ func TestConfigDefaults(t *testing.T) {
 	assert.True(t, cfg.Metrics.Enabled)
 	assert.Equal(t, 8080, cfg.Metrics.Port)
 	assert.Equal(t, "/metrics", cfg.Metrics.Path)
+	assert.Equal(t, float64(300), cfg.Performance.Budgets.ScanDurationSeconds)
+	assert.Equal(t, float64(2), cfg.Performance.Budgets.ListPhaseP95Seconds)
+	assert.Equal(t, 2048, cfg.Performance.Budgets.MemoryRSSMB)
+}
+
+func TestValidate_InvalidPerformanceBudgets(t *testing.T) {
+	cfg := validConfigForValidate(t)
+	cfg.Performance.Budgets.ScanDurationSeconds = 0
+
+	err := cfg.validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "performance.budgets.scan_duration_seconds must be greater than 0")
 }
 
 func TestEnvironmentVariableExpansion(t *testing.T) {
@@ -750,6 +765,11 @@ func validConfigForValidate(t *testing.T) *Config {
 				Enabled: true,
 				TTL:     5 * time.Minute,
 				MaxSize: 1000,
+			},
+			Budgets: BudgetConfig{
+				ScanDurationSeconds: 300,
+				ListPhaseP95Seconds: 2,
+				MemoryRSSMB:         2048,
 			},
 		},
 	}

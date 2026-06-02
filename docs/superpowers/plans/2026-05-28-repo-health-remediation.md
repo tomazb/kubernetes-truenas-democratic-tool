@@ -443,16 +443,18 @@ Suggested worktree layout:
 
 #### PR 12: Performance Budgets and Cardinality Docs
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Risk:** Low
 - **Focus:** Configurable scan/list latency budgets; benchmark gate; supported cardinality documented.
 - **Branch/worktree:**
   - Branch: `feature/pr-12-performance-budgets`
   - Worktree: `.worktrees/pr-12-performance-budgets`
 - **Depends on:** PR 9–11
+- **Spec/design:** `docs/superpowers/specs/2026-06-02-pr-12-performance-budgets-design.md`
+- **Implementation plan:** `docs/superpowers/plans/2026-06-02-pr-12-performance-budgets.md`
 - **Acceptance criteria:**
-  - [ ] Budget config keys validated and exported as metrics or log warnings on breach.
-  - [ ] ARCHITECTURE documents supported object-count envelope.
+  - [x] Budget config keys validated and exported as metrics or log warnings on breach.
+  - [x] ARCHITECTURE documents supported object-count envelope.
 
 ### Stage 3: Product Depth
 

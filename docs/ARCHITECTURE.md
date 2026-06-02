@@ -113,6 +113,9 @@ sequenceDiagram
 | `truenas_monitor_scan_duration_seconds` | Gauge | Last scan duration (seconds) |
 | `truenas_monitor_scan_duration_histogram_seconds` | Histogram | Scan duration distribution |
 | `truenas_monitor_list_duration_seconds` | Histogram | Per-phase list latency (`phase` label) |
+| `truenas_monitor_performance_budget_breaches_total` | Counter | Budget breaches (`budget`,`phase`) |
+| `truenas_monitor_performance_budget_status` | Gauge | Current budget status (0 healthy, 1 breached) |
+| `truenas_monitor_performance_budget_last_breach_timestamp` | Gauge | Last breach timestamp by budget/phase |
 | `truenas_monitor_pvs_total` | Gauge | Total PVs seen in last scan |
 | `truenas_monitor_pvcs_total` | Gauge | Total PVCs seen in last scan |
 | `truenas_monitor_snapshots_total` | Gauge | Total snapshots seen in last scan |
@@ -131,6 +134,18 @@ sequenceDiagram
 | Go controller | — | — | Not in repo |
 
 Configuration schemas differ between Go (`kubernetes:`) and Python (`openshift:`). See [config-compatibility.md](config-compatibility.md).
+
+### Supported cardinality envelope (current baseline)
+
+The current shipped baseline is validated for an initial operating envelope of roughly **1,000 PV/PVC/snapshot objects** with an expected scan duration target under **5 minutes** in representative CI/dev environments.
+
+Assumptions for this envelope:
+
+- In-process inventory cache is enabled (`performance.cache.enabled: true`).
+- Watch mode may reduce full-scan frequency, with polling fallback still available.
+- Cluster/API latency is within normal range and no external rate limiting is forcing long retries.
+
+Performance budgets are configurable in Go runtime via `performance.budgets.*`. Breaches currently emit warnings and metrics only (no hard-fail behavior), which is intentional for the soft-gate maturity stage.
 
 ---
 

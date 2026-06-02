@@ -1,0 +1,33 @@
+name: Performance Benchmark (Soft Gate)
+
+on:
+  pull_request:
+    paths:
+      - "go/**"
+      - "scripts/perf-budget-benchmark.sh"
+      - ".github/workflows/performance-benchmark.yml"
+  workflow_dispatch:
+
+jobs:
+  perf-budget-benchmark:
+    name: Perf budget benchmark (warn only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: Run benchmark soft gate
+        run: bash scripts/perf-budget-benchmark.sh perf-budget-report.txt
+        continue-on-error: true
+
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-budget-report
+          path: perf-budget-report.txt

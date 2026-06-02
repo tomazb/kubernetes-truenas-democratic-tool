@@ -68,7 +68,7 @@ func main() {
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to parse TrueNAS timeout")
 	}
-	
+
 	truenasClient, err := truenas.NewClient(truenas.Config{
 		URL:      cfg.TrueNAS.URL,
 		Username: cfg.TrueNAS.Username,
@@ -116,10 +116,13 @@ func main() {
 			Namespace:  cfg.Kubernetes.Namespace,
 			InCluster:  cfg.Kubernetes.InCluster,
 		},
-		Namespace:         cfg.Kubernetes.Namespace,
-		InventoryCache:    inventoryCache,
-		OrphanThreshold:   cfg.Monitor.OrphanThreshold,
-		SnapshotRetention: cfg.Monitor.SnapshotRetention,
+		Namespace:            cfg.Kubernetes.Namespace,
+		InventoryCache:       inventoryCache,
+		OrphanThreshold:      cfg.Monitor.OrphanThreshold,
+		SnapshotRetention:    cfg.Monitor.SnapshotRetention,
+		ScanBudgetSeconds:    cfg.Performance.Budgets.ScanDurationSeconds,
+		ListP95BudgetSeconds: cfg.Performance.Budgets.ListPhaseP95Seconds,
+		MemoryBudgetMB:       cfg.Performance.Budgets.MemoryRSSMB,
 	})
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to create monitor service")
@@ -176,7 +179,7 @@ func initLogger(level string) (*logging.Logger, error) {
 		Development: false,
 		Encoding:    "json",
 	}
-	
+
 	return logging.NewLogger(config)
 }
 
