@@ -385,7 +385,9 @@ def get_default_config() -> Dict[str, Any]:
             "enabled": False,
         },
         "reporting": {
-            "output_dir": "/tmp/truenas-monitor/reports",
+            "output_dir": str(
+                Path.home() / ".local" / "share" / "truenas-monitor" / "reports"
+            ),
             "formats": ["html"],
         },
         "api": {

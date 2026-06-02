@@ -137,12 +137,12 @@ jobs:
       - name: Run Bandit security scan
         run: |
           cd python
-          bandit -r truenas_storage_monitor/ -f json -o bandit-report.json
+          bandit -r truenas_storage_monitor/ -lll -f json -o bandit-report.json
           
       - name: Run Safety check
         run: |
           cd python
-          safety check --json --output safety-report.json
+          safety check -r requirements.txt -r requirements-dev.txt -r requirements-cli.txt --output json > safety-report.json
 
       - name: Upload security artifacts
         uses: actions/upload-artifact@v5
