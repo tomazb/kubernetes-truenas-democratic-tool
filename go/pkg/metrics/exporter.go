@@ -27,6 +27,10 @@ type Exporter struct {
 	listDurationHist       *prometheus.HistogramVec
 	cacheHits              *prometheus.CounterVec
 	cacheMisses            *prometheus.CounterVec
+	reconcileMode          *prometheus.GaugeVec
+	watchEvents            *prometheus.CounterVec
+	reconcileTriggers      *prometheus.CounterVec
+	truenasSnapshotAge     prometheus.Gauge
 	totalPVs               prometheus.Gauge
 	totalPVCs              prometheus.Gauge
 	totalSnapshots         prometheus.Gauge
@@ -92,6 +96,26 @@ func NewExporter(config Config) *Exporter {
 		Help: "Inventory cache misses by operation",
 	}, []string{"operation"})
 
+	reconcileMode := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "truenas_monitor_reconcile_mode",
+		Help: "Active reconcile mode (1 for active mode)",
+	}, []string{"mode"})
+
+	watchEvents := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "truenas_monitor_watch_events_total",
+		Help: "Kubernetes watch events received",
+	}, []string{"resource"})
+
+	reconcileTriggers := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "truenas_monitor_reconcile_triggers_total",
+		Help: "Orphan reconcile runs by trigger",
+	}, []string{"trigger"})
+
+	truenasSnapshotAge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "truenas_monitor_truenas_snapshot_age_seconds",
+		Help: "Age of the last successful TrueNAS inventory poll in watch mode",
+	})
+
 	totalPVs := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "truenas_monitor_pvs_total",
 		Help: "Total number of persistent volumes",
@@ -127,6 +151,10 @@ func NewExporter(config Config) *Exporter {
 		listDurationHist,
 		cacheHits,
 		cacheMisses,
+		reconcileMode,
+		watchEvents,
+		reconcileTriggers,
+		truenasSnapshotAge,
 		totalPVs,
 		totalPVCs,
 		totalSnapshots,
@@ -163,6 +191,10 @@ func NewExporter(config Config) *Exporter {
 		listDurationHist:       listDurationHist,
 		cacheHits:              cacheHits,
 		cacheMisses:            cacheMisses,
+		reconcileMode:          reconcileMode,
+		watchEvents:            watchEvents,
+		reconcileTriggers:      reconcileTriggers,
+		truenasSnapshotAge:     truenasSnapshotAge,
 		totalPVs:               totalPVs,
 		totalPVCs:              totalPVCs,
 		totalSnapshots:         totalSnapshots,
@@ -222,6 +254,32 @@ func (e *Exporter) ObserveScanDuration(duration float64) {
 // ObserveListPhaseDuration records a list operation duration for a detection phase
 func (e *Exporter) ObserveListPhaseDuration(phase string, duration float64) {
 	e.listDurationHist.WithLabelValues(phase).Observe(duration)
+}
+
+// SetReconcileMode marks which reconcile mode is active.
+func (e *Exporter) SetReconcileMode(mode string) {
+	for _, candidate := range []string{"poll", "watch"} {
+		value := 0.0
+		if candidate == mode {
+			value = 1
+		}
+		e.reconcileMode.WithLabelValues(candidate).Set(value)
+	}
+}
+
+// RecordWatchEvent increments watch event counters.
+func (e *Exporter) RecordWatchEvent(resource string) {
+	e.watchEvents.WithLabelValues(resource).Inc()
+}
+
+// IncReconcileTrigger increments reconcile trigger counters.
+func (e *Exporter) IncReconcileTrigger(trigger string) {
+	e.reconcileTriggers.WithLabelValues(trigger).Inc()
+}
+
+// SetTruenasSnapshotAge sets the TrueNAS snapshot age gauge in seconds.
+func (e *Exporter) SetTruenasSnapshotAge(ageSeconds float64) {
+	e.truenasSnapshotAge.Set(ageSeconds)
 }
 
 // RecordInventoryCacheAccess increments cache hit or miss counters.

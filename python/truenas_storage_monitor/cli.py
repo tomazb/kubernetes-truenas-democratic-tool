@@ -8,8 +8,10 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
-from .config import load_config
+from .config import Config, load_config
 from .exceptions import TrueNASMonitorError
+from .monitor import Monitor
+from .reconcile import WatchReconciler
 
 console = Console()
 
@@ -152,6 +154,38 @@ def validate(ctx: click.Context) -> None:
         sys.exit(1)
     else:
         console.print("\n[green]All checks passed![/green]")
+
+
+@cli.command()
+@click.option(
+    "--mode",
+    type=click.Choice(["poll", "watch"]),
+    default=None,
+    help="Override monitoring.reconcile_mode from config",
+)
+@click.pass_context
+def watch(ctx: click.Context, mode: Optional[str]) -> None:
+    """Run long-running watch-mode orphan reconciliation until interrupted."""
+    config: Config = ctx.obj["config"]
+    reconcile_mode = (mode or config.reconcile_mode).lower()
+    if reconcile_mode != "watch":
+        console.print(
+            "[red]watch requires reconcile_mode=watch; "
+            "set monitoring.reconcile_mode or pass --mode watch[/red]"
+        )
+        sys.exit(1)
+
+    debounce = config.debounce
+    tn_poll = config.truenas_poll_interval
+    console.print(
+        "[yellow]Starting watch reconcile "
+        f"(debounce={debounce}, truenas_poll={tn_poll})...[/yellow]"
+    )
+    console.print("[cyan]Press Ctrl+C to stop[/cyan]")
+
+    reconciler = WatchReconciler(Monitor(config), config)
+    reconciler.run_until_signal()
+    console.print("[green]Watch reconcile stopped[/green]")
 
 
 @cli.command()
