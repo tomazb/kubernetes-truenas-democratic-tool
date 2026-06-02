@@ -21,6 +21,9 @@ truenas:
 
 # Monitoring configuration (required)
 monitoring:
+  reconcile_mode: poll   # poll | watch
+  debounce: 30s          # watch mode: debounced reconcile quiet period
+  truenas_poll_interval: 5m  # watch mode: TrueNAS background refresh
   orphan_check_interval: 1h
   orphan_threshold: 24h
   snapshot:
