@@ -7,7 +7,6 @@ on:
     branches: [ main, develop ]
 
 env:
-  GO_VERSION: '1.24'
   PYTHON_VERSION: '3.12'
 
 jobs:
@@ -36,7 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go/go.mod
           
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -157,12 +156,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go/go.mod
           
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          install-mode: goinstall
           working-directory: go
           args: --timeout=5m
           
@@ -201,7 +201,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go/go.mod
           
       - name: Build Go binaries
         run: |
