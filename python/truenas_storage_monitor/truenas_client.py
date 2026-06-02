@@ -151,8 +151,10 @@ class TrueNASClient:
         # Set authentication
         if config.api_key:
             self.session.headers["Authorization"] = f"Bearer {config.api_key}"
-        else:
+        elif config.username is not None and config.password is not None:
             self.session.auth = (config.username, config.password)
+        else:
+            self.session.auth = None
 
         # SSL verification
         self.session.verify = config.verify_ssl

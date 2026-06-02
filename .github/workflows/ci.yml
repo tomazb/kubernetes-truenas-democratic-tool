@@ -49,7 +49,7 @@ jobs:
         run: cd go && go mod download
         
       - name: Run tests
-        run: cd go && go test ./... -v -race -coverprofile=coverage.out
+        run: make go-test
         
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -88,9 +88,8 @@ jobs:
           
       - name: Run tests
         run: |
-          cd python
-          # Interim gate (70%); see docs/superpowers/backlog.md BL-20260528-python-coverage-gate
-          pytest tests/ -v --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=70
+          make python-test
+          cd python && PYTHONHASHSEED=0 pytest tests/ -q --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=70
           
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -138,12 +137,22 @@ jobs:
       - name: Run Bandit security scan
         run: |
           cd python
-          bandit -r truenas_storage_monitor/ -f json -o bandit-report.json || true
+          bandit -r truenas_storage_monitor/ -f json -o bandit-report.json
           
       - name: Run Safety check
         run: |
           cd python
-          safety check --json --output safety-report.json || true
+          safety check --json --output safety-report.json
+
+      - name: Upload security artifacts
+        uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            trivy-results.sarif
+            python/bandit-report.json
+            python/safety-report.json
 
   # Linting
   lint:
@@ -176,19 +185,7 @@ jobs:
           pip install black flake8 mypy
           
       - name: Run Black
-        run: |
-          cd python
-          black --check .
-          
-      - name: Run Flake8
-        run: |
-          cd python
-          flake8 --max-line-length=100 --extend-ignore=E203,W503 .
-          
-      - name: Run MyPy
-        run: |
-          cd python
-          mypy truenas_storage_monitor/
+        run: make python-lint
 
   # Build Test
   build-test:

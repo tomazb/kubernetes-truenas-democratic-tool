@@ -162,6 +162,7 @@ func Load(path string) (*Config, error) {
 	// Read file if it exists
 	if _, err := os.Stat(path); err == nil {
 		fileExists = true
+		// #nosec G304 -- config path is an explicit operator-provided input.
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)

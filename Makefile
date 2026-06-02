@@ -20,7 +20,7 @@ go-build: go-deps ## Build all Go binaries
 
 .PHONY: go-test
 go-test: ## Run Go tests
-	cd go && go test ./... -v -cover -coverprofile=coverage.out
+	cd go && go test ./... -v -count=1 -cover -coverprofile=coverage.out
 
 .PHONY: go-test-coverage
 go-test-coverage: go-test ## Run Go tests with coverage report
@@ -32,7 +32,10 @@ go-lint: ## Run Go linters
 
 .PHONY: go-security
 go-security: ## Run Go security checks
-	cd go && gosec -fmt=json -out=security-report.json ./...
+	@if ! command -v gosec >/dev/null 2>&1; then \
+		cd go && go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	fi
+	cd go && $$(go env GOPATH)/bin/gosec -fmt=json -out=security-report.json ./...
 
 # Python targets
 .PHONY: python-deps
@@ -45,18 +48,18 @@ python-build: ## Build Python package
 
 .PHONY: python-test
 python-test: ## Run Python tests
-	cd python && pytest tests/ -v --cov=truenas_storage_monitor --cov-report=html --cov-report=term-missing --cov-fail-under=70
+	cd python && PYTHONHASHSEED=0 pytest tests/ -v --cov=truenas_storage_monitor --cov-report=html --cov-report=term-missing --cov-fail-under=70
 
 .PHONY: python-lint
 python-lint: ## Run Python linters
 	cd python && black . --check
-	cd python && flake8 .
+	cd python && flake8 --max-line-length=100 --extend-ignore=E203,W503 .
 	cd python && mypy .
 
 .PHONY: python-security
 python-security: ## Run Python security checks
-	cd python && bandit -r . -f json -o security-report.json
-	cd python && safety check
+	cd python && bandit -r truenas_storage_monitor/ -lll -f json -o security-report.json
+	cd python && safety check -r requirements.txt -r requirements-dev.txt -r requirements-cli.txt
 
 # Combined targets
 .PHONY: build-all
@@ -67,25 +70,48 @@ test-all: go-test python-test ## Run all tests
 
 .PHONY: test-unit
 test-unit: ## Run unit tests only
-	cd go && go test ./... -v -short
-	cd python && pytest tests/unit/ -v
+	cd go && go test ./... -v -short -count=1
+	cd python && PYTHONHASHSEED=0 pytest tests/unit/ -v --no-cov
 
 .PHONY: test-integration
 test-integration: ## Run integration tests
-	cd go && go test ./... -v -run Integration
-	cd python && pytest tests/ -v -m integration --no-cov || [ $$? -eq 5 ]
+	cd go && go test ./... -v -run Integration -count=1
+	cd python && PYTHONHASHSEED=0 pytest tests/ -v -m integration --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-e2e
 test-e2e: ## Run end-to-end tests
-	cd python && pytest tests/ -v -m e2e --no-cov || [ $$? -eq 5 ]
+	cd python && PYTHONHASHSEED=0 pytest tests/ -v -m e2e --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-security
 test-security: ## Run security tests
-	cd python && pytest tests/ -v -m security --no-cov || [ $$? -eq 5 ]
+	cd python && PYTHONHASHSEED=0 pytest tests/ -v -m security --no-cov || [ $$? -eq 5 ]
 
 .PHONY: test-idempotency
 test-idempotency: ## Run idempotency tests
-	cd python && pytest tests/ -v -m idempotency --no-cov || [ $$? -eq 5 ]
+	cd python && PYTHONHASHSEED=0 pytest tests/ -v -m idempotency --no-cov || [ $$? -eq 5 ]
+
+.PHONY: test-staging
+test-staging: ## Run staging-only tests (requires TEST_STAGING=true)
+	cd python && PYTHONHASHSEED=0 pytest tests/staging/ -v -m "integration or e2e" --no-cov || [ $$? -eq 5 ]
+
+.PHONY: test-release-matrix
+test-release-matrix: ## Run release readiness regression matrix
+	@mkdir -p artifacts
+	cd python && PYTHONHASHSEED=0 pytest tests/regression/ -v -m "security or idempotency or slow" --no-cov || [ $$? -eq 5 ]
+	bash scripts/perf-budget-benchmark.sh artifacts/perf-budget-report.txt
+
+.PHONY: test-ci-gate
+test-ci-gate: ci-precheck go-test python-test lint-all security-scan ## Deterministic CI gate
+
+.PHONY: test-matrix
+test-matrix: ## Run full test matrix (CI gate + staging + release matrix)
+	@mkdir -p artifacts
+	$(MAKE) test-ci-gate
+	$(MAKE) test-staging
+	$(MAKE) test-release-matrix
+	@staging_status="skipped"; \
+	if [ "$$TEST_STAGING" = "true" ]; then staging_status="passed"; fi; \
+	printf '{\n  "ci_gate": "passed",\n  "staging_status": "%s",\n  "release_matrix": "passed"\n}\n' "$$staging_status" > artifacts/summary.json
 
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode

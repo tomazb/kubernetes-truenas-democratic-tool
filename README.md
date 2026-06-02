@@ -139,6 +139,10 @@ This project follows TDD practices where tests exist for changed behavior:
 ```bash
 make test-unit      # Go + Python unit tests
 make test-all       # Full test suites
+make test-ci-gate   # Deterministic PR gate
+make test-staging   # Staging-only suite (requires TEST_STAGING=true)
+make test-release-matrix  # Perf/resilience/security matrix
+make test-matrix    # Full autonomous matrix
 make go-test-coverage
 make lint-all
 make ci-precheck    # Validate CI/Makefile path references
@@ -164,6 +168,9 @@ make docker-build-all   # monitor, api, cli images
 - [Architecture](docs/ARCHITECTURE.md) — Current (shipped) vs target (planned) design
 - [Config compatibility](docs/config-compatibility.md) — Go vs Python YAML schemas
 - [API endpoint maturity](docs/api-endpoints.md) — Implemented vs 501 routes (7 implemented, 15 not implemented)
+- [Test inventory](docs/testing/test-inventory.md) — capability-to-test traceability map
+- [Staging test runbook](docs/testing/staging-test-runbook.md) — preflight and execution for staging lane
+- [Agent test execution](docs/testing/agent-test-execution.md) — autonomous test sequence and stop conditions
 - [PRD](docs/PRD.md) — Product requirements and roadmap
 - [Remediation plan](docs/superpowers/plans/2026-05-28-repo-health-remediation.md) — Phased repo health work
 - [Backlog](docs/superpowers/backlog.md) — Canonical out-of-scope intake
