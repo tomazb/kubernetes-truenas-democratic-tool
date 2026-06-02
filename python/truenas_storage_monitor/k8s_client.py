@@ -280,7 +280,7 @@ class K8sClient:
         try:
             namespace = namespace or self.config.namespace
             group = "snapshot.storage.k8s.io"
-            version = "v1beta1"
+            version = "v1"
             plural = "volumesnapshots"
 
             if namespace:
