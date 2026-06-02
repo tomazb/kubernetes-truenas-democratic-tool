@@ -126,7 +126,9 @@ class WatchReconciler:
                 return list(self._tn_snapshot.volumes)
         return self._orig_get_volumes()
 
-    def _cached_get_snapshots(self) -> List[Any]:
+    def _cached_get_snapshots(self, dataset: Optional[str] = None) -> List[Any]:
+        if dataset is not None:
+            return self._orig_get_snapshots(dataset)
         if self._force_live_tn:
             return self._orig_get_snapshots()
         with self._tn_lock:
