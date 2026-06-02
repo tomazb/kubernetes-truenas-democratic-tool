@@ -665,10 +665,15 @@ class K8sClient:
                 )
 
             for event in stream:
-                metadata = event["object"]["metadata"]
+                obj = event.get("object") or {}
+                metadata = obj.get("metadata") or {}
+                name = metadata.get("name")
+                if not name:
+                    # Skip non-resource watch events (e.g., ERROR/BOOKMARK payloads).
+                    continue
                 yield {
-                    "type": event["type"],
-                    "name": metadata["name"],
+                    "type": event.get("type", "UNKNOWN"),
+                    "name": name,
                     "namespace": metadata.get("namespace"),
                     "timestamp": utc_now(),
                 }
