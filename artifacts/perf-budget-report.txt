@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/monitor
+cpu: AMD EPYC-Genoa Processor
+BenchmarkService_UpdateMetrics-8   	    8012	    152517 ns/op	   60849 B/op	     390 allocs/op
+PASS
+ok  	github.com/tomazb/kubernetes-truenas-democratic-tool/pkg/monitor	1.260s
+
+budget_thresholds:
+  max_ns_per_op: 20000000
+  max_bytes_per_op: 20000
+observed:
+  ns_per_op: 152517
+  bytes_per_op: 60849
+status=warn

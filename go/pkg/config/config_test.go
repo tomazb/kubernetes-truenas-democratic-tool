@@ -250,6 +250,17 @@ func TestLoadNonExistentFile(t *testing.T) {
 	assert.Equal(t, "/metrics", cfg.Metrics.Path)
 }
 
+func TestLoadRejectsNonRegularFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := os.Mkdir(filepath.Join(tmpDir, "config.yaml"), 0o755)
+	require.NoError(t, err)
+
+	cfg, err := Load(filepath.Join(tmpDir, "config.yaml"))
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "not a regular file")
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string

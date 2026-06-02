@@ -160,7 +160,10 @@ func Load(path string) (*Config, error) {
 
 	fileExists := false
 	// Read file if it exists
-	if _, err := os.Stat(path); err == nil {
+	if info, err := os.Stat(path); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("config path %q is not a regular file", path)
+		}
 		fileExists = true
 		// #nosec G304 -- config path is an explicit operator-provided input.
 		data, err := os.ReadFile(path)

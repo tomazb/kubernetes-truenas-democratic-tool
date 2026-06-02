@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 
@@ -17,3 +18,8 @@ REQUIRED_ENV_VARS = [
 def test_staging_environment_contract() -> None:
     missing = [key for key in REQUIRED_ENV_VARS if not os.getenv(key)]
     assert not missing, f"missing required staging env vars: {', '.join(missing)}"
+
+    kubeconfig = os.getenv("STAGING_KUBECONFIG", "")
+    assert Path(
+        kubeconfig
+    ).is_file(), f"STAGING_KUBECONFIG must point to an existing file, got: {kubeconfig!r}"

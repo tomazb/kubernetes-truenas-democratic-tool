@@ -13,7 +13,6 @@ jobs:
       contents: read
     env:
       TEST_STAGING: "true"
-      STAGING_KUBECONFIG: ${{ secrets.STAGING_KUBECONFIG }}
       STAGING_NAMESPACE: ${{ secrets.STAGING_NAMESPACE }}
       STAGING_TRUENAS_URL: ${{ secrets.STAGING_TRUENAS_URL }}
       STAGING_TRUENAS_USERNAME: ${{ secrets.STAGING_TRUENAS_USERNAME }}
@@ -38,6 +37,13 @@ jobs:
         run: |
           cd python && pip install -e ".[dev,cli]"
           cd ../go && go mod download
+
+      - name: Materialize staging kubeconfig
+        run: |
+          KUBECONFIG_PATH="$RUNNER_TEMP/staging-kubeconfig"
+          printf '%s' '${{ secrets.STAGING_KUBECONFIG }}' > "$KUBECONFIG_PATH"
+          chmod 600 "$KUBECONFIG_PATH"
+          echo "STAGING_KUBECONFIG=$KUBECONFIG_PATH" >> "$GITHUB_ENV"
 
       - name: Run full matrix
         run: make test-matrix

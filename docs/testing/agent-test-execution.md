@@ -33,12 +33,16 @@ Composite command:
 
 ## Artifacts (Required)
 
-- `artifacts/junit/*.xml` (pytest/go junit if generated)
-- `artifacts/coverage/*`
-- `artifacts/security/*`
-- `artifacts/perf/*`
-- `artifacts/staging/*`
-- `artifacts/summary.json` (high-level run status per lane)
+- `artifacts/summary.json` (high-level run status per lane; written even when a lane fails)
+- `artifacts/perf-budget-report.txt` (release matrix perf benchmark output)
+- `go/coverage.out` (Go coverage from lane1)
+- `python/htmlcov/` and `python/coverage.xml` (Python coverage from lane1)
+- `python/bandit-report.json` and `python/safety-report.json` (when security scan runs)
+
+Optional/future (not yet produced by default matrix):
+
+- `artifacts/junit/*.xml`
+- `artifacts/coverage/*`, `artifacts/security/*`, `artifacts/staging/*` subtrees
 
 ## Automatic Defect Filing Trigger
 

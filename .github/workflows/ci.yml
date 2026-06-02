@@ -49,7 +49,7 @@ jobs:
         run: cd go && go mod download
         
       - name: Run tests
-        run: make go-test
+        run: make go-test GO_TEST_FLAGS=-race
         
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -87,9 +87,7 @@ jobs:
           pip install -e ".[dev,cli]"
           
       - name: Run tests
-        run: |
-          make python-test
-          cd python && PYTHONHASHSEED=0 pytest tests/ -q --cov=truenas_storage_monitor --cov-report=xml --cov-fail-under=70
+        run: make python-test
           
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -184,7 +182,7 @@ jobs:
         run: |
           pip install black flake8 mypy
           
-      - name: Run Black
+      - name: Run Python lint (black, flake8, mypy)
         run: make python-lint
 
   # Build Test

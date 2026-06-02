@@ -19,8 +19,8 @@ go-build: go-deps ## Build all Go binaries
 	cd go && go build -o ../bin/api-server ./cmd/api-server
 
 .PHONY: go-test
-go-test: ## Run Go tests
-	cd go && go test ./... -v -count=1 -cover -coverprofile=coverage.out
+go-test: ## Run Go tests (set GO_TEST_FLAGS=-race for race detector)
+	cd go && go test ./... -v -count=1 -cover -coverprofile=coverage.out $(GO_TEST_FLAGS)
 
 .PHONY: go-test-coverage
 go-test-coverage: go-test ## Run Go tests with coverage report
@@ -32,10 +32,13 @@ go-lint: ## Run Go linters
 
 .PHONY: go-security
 go-security: ## Run Go security checks
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		cd go && go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	cd go && $$(go env GOPATH)/bin/gosec -fmt=json -out=security-report.json ./...
+	@GOBIN=$$(cd go && go env GOPATH)/bin; \
+	GOSEC=$$(command -v gosec 2>/dev/null || echo "$$GOBIN/gosec"); \
+	if [ ! -x "$$GOSEC" ]; then \
+		cd go && go install github.com/securego/gosec/v2/cmd/gosec@v2.22.9; \
+		GOSEC="$$GOBIN/gosec"; \
+	fi; \
+	cd go && "$$GOSEC" -fmt=json -out=security-report.json ./...
 
 # Python targets
 .PHONY: python-deps
@@ -48,7 +51,7 @@ python-build: ## Build Python package
 
 .PHONY: python-test
 python-test: ## Run Python tests
-	cd python && PYTHONHASHSEED=0 pytest tests/ -v --cov=truenas_storage_monitor --cov-report=html --cov-report=term-missing --cov-fail-under=70
+	cd python && PYTHONHASHSEED=0 pytest tests/ -v --cov=truenas_storage_monitor --cov-report=html --cov-report=term-missing --cov-report=xml --cov-fail-under=70
 
 .PHONY: python-lint
 python-lint: ## Run Python linters
@@ -105,13 +108,21 @@ test-ci-gate: ci-precheck go-test python-test lint-all security-scan ## Determin
 
 .PHONY: test-matrix
 test-matrix: ## Run full test matrix (CI gate + staging + release matrix)
-	@mkdir -p artifacts
-	$(MAKE) test-ci-gate
-	$(MAKE) test-staging
-	$(MAKE) test-release-matrix
-	@staging_status="skipped"; \
-	if [ "$$TEST_STAGING" = "true" ]; then staging_status="passed"; fi; \
-	printf '{\n  "ci_gate": "passed",\n  "staging_status": "%s",\n  "release_matrix": "passed"\n}\n' "$$staging_status" > artifacts/summary.json
+	@mkdir -p artifacts; \
+	ci_gate_status="passed"; \
+	staging_status="skipped"; \
+	release_matrix_status="passed"; \
+	$(MAKE) test-ci-gate || ci_gate_status="failed"; \
+	if [ "$$ci_gate_status" = "passed" ] && [ "$$TEST_STAGING" = "true" ]; then \
+		staging_status="passed"; \
+		$(MAKE) test-staging || staging_status="failed"; \
+	fi; \
+	if [ "$$ci_gate_status" = "passed" ] && [ "$$staging_status" != "failed" ]; then \
+		$(MAKE) test-release-matrix || release_matrix_status="failed"; \
+	fi; \
+	printf '{\n  "ci_gate": "%s",\n  "staging_status": "%s",\n  "release_matrix": "%s"\n}\n' \
+		"$$ci_gate_status" "$$staging_status" "$$release_matrix_status" > artifacts/summary.json; \
+	[ "$$ci_gate_status" = "passed" ] && [ "$$staging_status" != "failed" ] && [ "$$release_matrix_status" = "passed" ]
 
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode
