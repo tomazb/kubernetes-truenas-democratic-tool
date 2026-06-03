@@ -2,6 +2,17 @@
 
 Go services and the Python library/CLI use **different YAML schemas**. A single config file is not portable without translation.
 
+## Quick runtime decision (use this first)
+
+- Running `bin/api-server` or `bin/monitor`: use [`config.go.example`](../config.go.example) with `kubernetes:` + `truenas:`.
+- Running Python library/CLI: use [`config.yaml.example`](../config.yaml.example) with `openshift:` + `monitoring:`.
+- Production orphan checks in current baseline: prefer Go API routes (`/api/v1/orphans`, `/api/v1/orphans/pvs`).
+
+Safety note:
+
+- Go `security:` keys are parsed by `go/pkg/config` but are **not enforced** by the shipped API server or monitor.
+- Keep API exposure internal-only unless protected externally by your platform controls.
+
 ## Which file to use
 
 | Runtime | Example | Required top-level keys |
