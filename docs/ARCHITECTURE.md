@@ -27,6 +27,9 @@
 
 The baseline codebase ships a small set of Go services, a Python library/CLI scaffold, and Kubernetes deployment manifests. There is no Web UI, Helm chart, Redis cache, gRPC layer, or Go controller in the repository today.
 
+Use this section as the only source of deployed-baseline behavior.
+For low-risk onboarding steps, see [onboarding/operator-first.md](onboarding/operator-first.md).
+
 ### Shipped components
 
 | Component | Path | Role |
@@ -125,8 +128,8 @@ sequenceDiagram
 
 | Component | Language | Framework / library | Status |
 |-----------|----------|---------------------|--------|
-| Monitor service | Go 1.24+ | client-go, Prometheus | Shipped |
-| API server | Go 1.24+ | Gin | Shipped (partial routes) |
+| Monitor service | Go 1.25.0+ | client-go, Prometheus | Shipped |
+| API server | Go 1.25.0+ | Gin | Shipped (partial routes) |
 | Python library / CLI | Python 3.10+ | Click, Rich, kubernetes-client | Library shipped; CLI scaffold |
 | Deployment | YAML | `deploy/kubernetes/` | Shipped |
 | Helm chart | — | — | Planned (backlog) |
@@ -152,6 +155,8 @@ Performance budgets are configurable in Go runtime via `performance.budgets.*`. 
 # Target architecture (planned)
 
 > **Note:** Everything from section 1 onward describes **roadmap** components (Web UI, Controller, Redis, gRPC, ML analyzer, auto-remediation, multi-replica HA). These are **not production-ready** in the baseline repository. Diagrams are retained for planning.
+>
+> **Do not** treat this section as an implementation/deployment guide for the current repository state.
 
 ## 1. Overview
 
@@ -811,9 +816,9 @@ sequenceDiagram
 
 | Component | Language | Framework | Purpose | Status |
 |-----------|----------|-----------|---------|--------|
-| Monitor Service | Go 1.24+ | client-go | Performance-critical monitoring | Shipped |
-| API Server | Go 1.24+ | Gin | High-performance API | Shipped (partial) |
-| Controller | Go 1.24+ | controller-runtime | Kubernetes native controller | Planned (not in repo) |
+| Monitor Service | Go 1.25.0+ | client-go | Performance-critical monitoring | Shipped |
+| API Server | Go 1.25.0+ | Gin | High-performance API | Shipped (partial) |
+| Controller | Go 1.25.0+ | controller-runtime | Kubernetes native controller | Planned (not in repo) |
 | CLI Tool | Python 3.10+ | Click, Rich | User-friendly interface | Scaffold |
 | Analyzer | Python 3.10+ | Pandas, NumPy | Data analysis | Planned |
 | Web UI | TypeScript | React, Material-UI | Modern dashboard | Planned |
@@ -1097,4 +1102,11 @@ sequenceDiagram
 
 ## Conclusion
 
-This architecture provides a robust, scalable, and secure foundation for the Kubernetes TrueNAS Democratic Tool. The hybrid Go/Python approach leverages the strengths of both languages, while the microservices architecture ensures modularity and maintainability. The comprehensive security measures and idempotent design patterns make it suitable for production enterprise environments.
+For production onboarding and operational decisions in the current baseline, rely on:
+
+- the shipped section in this document,
+- [api-endpoints.md](api-endpoints.md) for implemented vs 501 routes,
+- [config-compatibility.md](config-compatibility.md) for runtime schema selection,
+- [onboarding/operator-first.md](onboarding/operator-first.md) for low-risk deployment guidance.
+
+Target architecture sections remain roadmap design material and should not be interpreted as shipped capability.

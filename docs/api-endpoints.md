@@ -4,6 +4,28 @@ This document describes the current maturity of HTTP routes exposed by the Go AP
 
 Orphan detection runs synchronously on each request for implemented orphan routes. Detector fidelity improvements land in focused PRs with tests; see [ARCHITECTURE.md](ARCHITECTURE.md) and [PRD.md](PRD.md) for maturity context.
 
+Important onboarding note:
+
+- Treat this API as an internal service during baseline onboarding.
+- The `security:` block in Go config is parsed but not enforced by the shipped API server.
+- Do not expose the API publicly without external authn/authz and network controls.
+
+## Low-risk evaluator route set
+
+Start with this allowlist during onboarding:
+
+| Route | Why start here |
+|-------|----------------|
+| `GET /health` | Process liveness |
+| `GET /ready` | Kubernetes + TrueNAS connectivity |
+| `GET /api/v1/orphans` | Primary implemented orphan correlation |
+| `GET /api/v1/orphans/pvs` | Implemented orphan PV subset |
+| `GET /api/v1/resources/pvs` | Implemented Kubernetes PV inventory |
+| `GET /api/v1/truenas/volumes` | Implemented TrueNAS volume inventory |
+| `GET /api/v1/validate` | Implemented connectivity validation |
+
+Routes outside this set may return HTTP 501 by design in the current baseline.
+
 ## Infrastructure
 
 | Route | Status | Notes |

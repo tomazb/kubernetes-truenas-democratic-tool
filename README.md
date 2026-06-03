@@ -10,6 +10,20 @@ A monitoring and analysis tool for OpenShift/Kubernetes clusters using TrueNAS S
 
 This tool correlates Kubernetes storage objects (PVs, PVCs, snapshots) with TrueNAS datasets and volumes to detect orphaned resources, configuration drift, and storage efficiency risks.
 
+## Start here (low-risk)
+
+Use one of these onboarding paths first:
+
+- [Operator-first onboarding](docs/onboarding/operator-first.md) — safest in-cluster evaluation path with preflight, guarded deploy, and rollback guidance.
+- [Local evaluator onboarding](docs/onboarding/local-evaluator.md) — local Go API/monitor checks for iterative validation.
+
+Safety and maturity guardrails:
+
+- Use implemented routes only for onboarding (`/health`, `/ready`, `/api/v1/orphans`, `/api/v1/orphans/pvs`, `/api/v1/resources/pvs`, `/api/v1/truenas/volumes`, `/api/v1/validate`).
+- Many routes intentionally return HTTP 501 in baseline; see [API endpoint maturity](docs/api-endpoints.md).
+- Python CLI commands are scaffold/demo for several workflows; use Go API for real orphan checks.
+- `security:` config keys are parsed in Go config but not enforced by the shipped API server; keep API access internal and protected by your cluster/network controls.
+
 ### Maturity snapshot
 
 | Area | Status | Notes |
@@ -46,13 +60,13 @@ Hybrid Go/Python layout for performance-sensitive runtime paths and flexible CLI
 
 See [Architecture](docs/ARCHITECTURE.md) for current vs planned system design.
 
-## Quick Start
+## Quick Start (development/evaluation)
 
 ### Prerequisites
 
 - Kubernetes or OpenShift cluster with democratic-csi
 - TrueNAS Scale with API access
-- Go 1.24+ (for Go services)
+- Go 1.25.0+ (for Go services)
 - Python 3.10+ (for library/CLI)
 
 ### Development setup
@@ -73,7 +87,7 @@ Binaries are written to `bin/monitor` and `bin/api-server`.
 Use the Go config schema (`kubernetes:` key). See [config compatibility](docs/config-compatibility.md) and [config.go.example](config.go.example).
 
 ```bash
-export TRUENAS_USERNAME=admin
+export TRUENAS_USERNAME='service-account-name'
 export TRUENAS_PASSWORD='change-me'
 ./bin/api-server -config config.go.example -port 8080
 curl -s http://localhost:8080/health
@@ -83,6 +97,14 @@ curl -s http://localhost:8080/api/v1/orphans
 ### Deploy to Kubernetes
 
 Helm is not shipped yet. Apply the bundled manifests:
+
+Low-risk checklist before applying:
+
+- Replace placeholders in `deploy/kubernetes/secret.yaml` (`TRUENAS_URL`, `TRUENAS_USERNAME`, `TRUENAS_PASSWORD`).
+- Do not apply with `changeme` credentials.
+- Pin `truenas-monitor:latest` and `truenas-api:latest` to immutable image tags or digests.
+- Keep services internal-only (`ClusterIP`) during onboarding.
+- Keep TLS verification enabled for TrueNAS (do not uncomment `truenas.insecure` except lab-only tests).
 
 ```bash
 kubectl apply -f deploy/kubernetes/
@@ -166,6 +188,8 @@ make docker-build-all   # monitor, api, cli images
 
 - [AGENTS.md](AGENTS.md) — Contributor playbook, PR policy, verification gates
 - [Architecture](docs/ARCHITECTURE.md) — Current (shipped) vs target (planned) design
+- [Operator-first onboarding](docs/onboarding/operator-first.md) — low-risk in-cluster onboarding
+- [Local evaluator onboarding](docs/onboarding/local-evaluator.md) — low-risk local onboarding path
 - [Config compatibility](docs/config-compatibility.md) — Go vs Python YAML schemas
 - [API endpoint maturity](docs/api-endpoints.md) — Implemented vs 501 routes (7 implemented, 15 not implemented)
 - [Test inventory](docs/testing/test-inventory.md) — capability-to-test traceability map
