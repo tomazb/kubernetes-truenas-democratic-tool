@@ -43,15 +43,7 @@ kubectl apply --dry-run=server -f deploy/kubernetes/
 kubectl diff -f deploy/kubernetes/
 ```
 
-3. Validate expected RBAC verbs for the service account:
-
-```bash
-kubectl auth can-i --as=system:serviceaccount:truenas-monitor:truenas-monitor list persistentvolumes
-kubectl auth can-i --as=system:serviceaccount:truenas-monitor:truenas-monitor list volumesnapshots.snapshot.storage.k8s.io
-kubectl auth can-i --as=system:serviceaccount:truenas-monitor:truenas-monitor list storageclasses.storage.k8s.io
-```
-
-4. Edit secret placeholders and verify no defaults remain:
+3. Edit secret placeholders and verify no defaults remain:
 
 - Update `deploy/kubernetes/secret.yaml`:
   - `TRUENAS_URL`
@@ -62,13 +54,13 @@ kubectl auth can-i --as=system:serviceaccount:truenas-monitor:truenas-monitor li
 - Generate unique credentials and inject them via secure secret-management workflows.
 - Treat `SLACK_WEBHOOK` as sensitive; set it only when needed and never commit real webhook values.
 
-5. Review config and deployment defaults:
+4. Review config and deployment defaults:
 
 - `deploy/kubernetes/configmap.yaml`:
   - Verify `kubernetes.namespace` matches your democratic-csi namespace.
   - Keep `truenas.insecure` disabled (commented).
 - `deploy/kubernetes/monitor-deployment.yaml` and `deploy/kubernetes/api-deployment.yaml`:
-  - Replace `:latest` images with pinned tags/digests.
+  - Replace `:latest` image references with immutable tags or digests (do not rely on floating `:latest` in production).
 - `deploy/kubernetes/services.yaml`:
   - Keep `type: ClusterIP` during onboarding.
 
@@ -93,6 +85,21 @@ Check logs for startup and connectivity errors:
 kubectl -n truenas-monitor logs deploy/truenas-monitor --tail=200
 kubectl -n truenas-monitor logs deploy/truenas-api --tail=200
 ```
+
+## Post-deploy RBAC verification
+
+Run these **after** `kubectl apply` so the ServiceAccount and bindings exist. Set `CSI_NAMESPACE` to match `kubernetes.namespace` in the ConfigMap (default in manifests: `democratic-csi`).
+
+```bash
+SA=system:serviceaccount:truenas-monitor:truenas-monitor
+CSI_NAMESPACE=democratic-csi
+
+kubectl auth can-i --as="$SA" list persistentvolumes
+kubectl auth can-i --as="$SA" list storageclasses.storage.k8s.io
+kubectl auth can-i --as="$SA" -n "$CSI_NAMESPACE" list volumesnapshots.snapshot.storage.k8s.io
+```
+
+If any check returns `no`, inspect `deploy/kubernetes/rbac.yaml` and your cluster policy before relying on monitor/API results.
 
 ## Verify implemented API routes only
 

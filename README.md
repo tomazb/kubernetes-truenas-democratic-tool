@@ -102,7 +102,7 @@ Low-risk checklist before applying:
 
 - Replace placeholders in `deploy/kubernetes/secret.yaml` (`TRUENAS_URL`, `TRUENAS_USERNAME`, `TRUENAS_PASSWORD`).
 - Do not apply with `changeme` credentials.
-- Pin `truenas-monitor:latest` and `truenas-api:latest` to immutable image tags or digests.
+- Replace `:latest` image references in `deploy/kubernetes/monitor-deployment.yaml` and `api-deployment.yaml` with immutable tags or digests.
 - Keep services internal-only (`ClusterIP`) during onboarding.
 - Keep TLS verification enabled for TrueNAS (do not uncomment `truenas.insecure` except lab-only tests).
 
