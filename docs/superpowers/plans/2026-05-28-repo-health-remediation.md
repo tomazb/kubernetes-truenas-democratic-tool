@@ -494,8 +494,9 @@ Suggested worktree layout:
 
 ## Execution Notes (2026-06-03)
 
-- PRD alignment (docs-only, local): `docs/PRD.md` restructured per `docs/superpowers/specs/2026-06-03-prd-maturity-alignment-design.md` — closes PR 8 deferral for product-facing maturity labels
+- PRD alignment (docs-only): `docs/PRD.md` restructured per `docs/superpowers/specs/2026-06-03-prd-maturity-alignment-design.md` — closes PR 8 deferral for product-facing maturity labels
 - Spec: [2026-06-03-prd-maturity-alignment-design.md](../specs/2026-06-03-prd-maturity-alignment-design.md)
+- PR URL: https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/74
 
 ## Execution Notes (2026-06-02)
 

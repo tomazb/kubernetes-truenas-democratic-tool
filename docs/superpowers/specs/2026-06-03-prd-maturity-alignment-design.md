@@ -30,7 +30,7 @@
 | Feature claims | Implied shipped | Explicit Partial/Planned per feature |
 | Performance | 10k volumes / sub-second API as norm | Baseline envelope (~1k objects, &lt;5 min scan) + GA targets separated |
 | Release plan | Reads as current schedule | Labeled roadmap milestones |
-| Go version | 1.21+ | 1.24+ |
+| Go version | 1.21+ | 1.25.0+ (matches `go/go.mod`) |
 
 ## Shipped baseline (source of truth)
 

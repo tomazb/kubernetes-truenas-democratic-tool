@@ -82,14 +82,14 @@ Aligned with [ARCHITECTURE.md](ARCHITECTURE.md#supported-cardinality-envelope-cu
 - Target scan duration: **under 5 minutes** in representative CI/dev environments
 - Performance budgets (`performance.budgets.*`): **warnings and metrics on breach** (soft gate), not hard failure
 
-Roadmap targets (10,000+ volumes, sub-second API at scale) are in [§5.2](#52-performance-metrics-roadmap).
+Roadmap targets (10,000+ volumes, sub-second API at scale) are in [§5.2](#52-performance-metrics).
 
 ### 2.4 Baseline compatibility
 
 - OpenShift 4.10+ / Kubernetes 1.24+
 - TrueNAS Scale 22.12+
 - Democratic-CSI 1.7+
-- Python 3.10+ / **Go 1.24+**
+- Python 3.10+ / **Go 1.25.0+** (matches `go/go.mod`; use `GOTOOLCHAIN=auto` or install Go 1.25+ locally)
 
 Go and Python use **different config schemas** (`kubernetes:` vs `openshift:`). See [config-compatibility.md](config-compatibility.md).
 
