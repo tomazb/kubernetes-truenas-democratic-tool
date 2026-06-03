@@ -171,7 +171,7 @@ make docker-build-all   # monitor, api, cli images
 - [Test inventory](docs/testing/test-inventory.md) — capability-to-test traceability map
 - [Staging test runbook](docs/testing/staging-test-runbook.md) — preflight and execution for staging lane
 - [Agent test execution](docs/testing/agent-test-execution.md) — autonomous test sequence and stop conditions
-- [PRD](docs/PRD.md) — Product requirements and roadmap
+- [PRD](docs/PRD.md) — Product requirements: **§2 current baseline** vs **§3–6 target roadmap**
 - [Remediation plan](docs/superpowers/plans/2026-05-28-repo-health-remediation.md) — Phased repo health work
 - [Backlog](docs/superpowers/backlog.md) — Canonical out-of-scope intake
 
@@ -204,7 +204,7 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 
 ## Roadmap
 
-See [docs/PRD.md](docs/PRD.md) for the full roadmap. Upcoming themes include Grafana integration, auto-remediation, and multi-cluster support — none are shipped in the baseline.
+See [docs/PRD.md](docs/PRD.md) for the full product vision. **§2** lists what is shipped or partial today; **§3–§6** are roadmap. Upcoming themes include Grafana integration, auto-remediation, and multi-cluster support — not shipped in the baseline.
 
 ## Acknowledgments
 

@@ -473,9 +473,10 @@ Suggested worktree layout:
 
 ### Stage 5: Documentation Governance
 
+- [x] PRD maturity alignment (baseline vs roadmap) — spec `docs/superpowers/specs/2026-06-03-prd-maturity-alignment-design.md`; deferred from PR 8 scope
 - [ ] Add docs ownership and docs-impact checklist to PR template.
 - [ ] Add docs-lint checks for path/command validity in CI.
-- [ ] Version documentation by maturity/release channel.
+- [ ] Version documentation by maturity/release channel (full automation).
 
 ## Sequencing
 
@@ -490,6 +491,12 @@ Suggested worktree layout:
 - [x] Complete PR 10 (TTL inventory cache).
 - [x] Complete PR 11 (watch/incremental reconcile).
 - [x] Complete PR 12 (performance budgets).
+
+## Execution Notes (2026-06-03)
+
+- PRD alignment (docs-only): `docs/PRD.md` restructured per `docs/superpowers/specs/2026-06-03-prd-maturity-alignment-design.md` — closes PR 8 deferral for product-facing maturity labels
+- Spec: [2026-06-03-prd-maturity-alignment-design.md](../specs/2026-06-03-prd-maturity-alignment-design.md)
+- PR URL: https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/74
 
 ## Execution Notes (2026-06-02)
 
