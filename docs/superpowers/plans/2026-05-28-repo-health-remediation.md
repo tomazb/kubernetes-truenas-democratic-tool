@@ -97,9 +97,9 @@ Suggested worktree layout:
 
 - **Current phase:** Stage 2 — In Progress (M4 scalability foundation)
 - **Primary owner:** TBD
-- **Last updated:** 2026-06-02
-- **Last merged:** PR 11 Watch-based incremental reconcile [#61](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/61) (2026-06-02, `063b249`)
-- **Next up:** PR 12 — Performance budgets and cardinality docs
+- **Last updated:** 2026-06-03
+- **Last merged:** PRD maturity alignment [#74](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/74) (2026-06-03, `ea55daa`)
+- **Next up:** Low-risk onboarding docs [#75](https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/75) (open)
 
 ## Milestones
 
@@ -494,9 +494,9 @@ Suggested worktree layout:
 
 ## Execution Notes (2026-06-03)
 
-- PRD alignment (docs-only): `docs/PRD.md` restructured per `docs/superpowers/specs/2026-06-03-prd-maturity-alignment-design.md` — closes PR 8 deferral for product-facing maturity labels
+- PRD alignment (docs-only, **merged**): `docs/PRD.md` restructured per `docs/superpowers/specs/2026-06-03-prd-maturity-alignment-design.md` — closes PR 8 deferral for product-facing maturity labels
 - Spec: [2026-06-03-prd-maturity-alignment-design.md](../specs/2026-06-03-prd-maturity-alignment-design.md)
-- PR URL: https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/74
+- PR URL: https://github.com/tomazb/kubernetes-truenas-democratic-tool/pull/74 (merge commit `ea55daa`)
 
 ## Execution Notes (2026-06-02)
 
