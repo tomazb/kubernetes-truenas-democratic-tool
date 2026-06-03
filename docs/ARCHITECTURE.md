@@ -133,7 +133,7 @@ sequenceDiagram
 | Web UI | — | — | Planned |
 | Go controller | — | — | Not in repo |
 
-Configuration schemas differ between Go (`kubernetes:`) and Python (`openshift:`). See [config-compatibility.md](config-compatibility.md).
+Configuration schemas differ between Go (`kubernetes:`) and Python (`openshift:`). See [config-compatibility.md](config-compatibility.md). Product maturity summary: [PRD.md](PRD.md) §2 (baseline) and §3–6 (roadmap).
 
 ### Supported cardinality envelope (current baseline)
 

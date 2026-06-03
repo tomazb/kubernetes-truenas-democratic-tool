@@ -2,7 +2,7 @@
 
 This document describes the current maturity of HTTP routes exposed by the Go API server (`cmd/api-server`).
 
-Orphan detection runs synchronously on each request for implemented orphan routes. Detection quality continues to improve in PR-5 (detector fidelity).
+Orphan detection runs synchronously on each request for implemented orphan routes. Detector fidelity improvements land in focused PRs with tests; see [ARCHITECTURE.md](ARCHITECTURE.md) and [PRD.md](PRD.md) for maturity context.
 
 ## Infrastructure
 

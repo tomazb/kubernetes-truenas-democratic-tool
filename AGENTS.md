@@ -78,13 +78,13 @@ This snapshot is for contributor orientation and should be kept current as PRs m
 
 - Some API/validation paths still include placeholder or not-implemented behavior.
 - Test coverage quality is uneven due to interface drift and stale assumptions in parts of the suite.
-- Documentation has been converging toward implemented reality but still requires ongoing alignment.
+- Product PRD ([docs/PRD.md](docs/PRD.md)) separates current baseline from target roadmap; operator docs ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/api-endpoints.md](docs/api-endpoints.md)) should stay in sync when behavior changes.
 
 ### Planned / Later Stage
 
 - Full endpoint maturity with complete end-to-end behavior guarantees.
-- Scalability upgrades (incremental/watch-driven reconciliation, smarter caching).
-- Higher operational maturity (performance budgets, resilience hardening, stronger SLO-driven operations).
+- Scalability upgrades beyond baseline watch/cache (e.g., multi-shard monitors, persistent trend store).
+- Higher operational maturity (hard SLO gates, stronger resilience automation beyond soft performance budgets).
 
 ### Contribution Guidance by Maturity
 
