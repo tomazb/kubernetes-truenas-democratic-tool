@@ -1,0 +1,59 @@
+name: Staging and Release Test Matrix
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 2 * * *"
+
+jobs:
+  test-matrix:
+    name: Test Matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TEST_STAGING: "true"
+      STAGING_NAMESPACE: ${{ secrets.STAGING_NAMESPACE }}
+      STAGING_TRUENAS_URL: ${{ secrets.STAGING_TRUENAS_URL }}
+      STAGING_TRUENAS_USERNAME: ${{ secrets.STAGING_TRUENAS_USERNAME }}
+      STAGING_TRUENAS_PASSWORD: ${{ secrets.STAGING_TRUENAS_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          cd python && pip install -e ".[dev,cli]"
+          cd ../go && go mod download
+
+      - name: Materialize staging kubeconfig
+        run: |
+          KUBECONFIG_PATH="$RUNNER_TEMP/staging-kubeconfig"
+          printf '%s' '${{ secrets.STAGING_KUBECONFIG }}' > "$KUBECONFIG_PATH"
+          chmod 600 "$KUBECONFIG_PATH"
+          echo "STAGING_KUBECONFIG=$KUBECONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: Run full matrix
+        run: make test-matrix
+
+      - name: Upload matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-matrix-artifacts
+          path: |
+            artifacts/
+            python/htmlcov/
+            go/coverage.out

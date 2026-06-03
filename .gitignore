@@ -121,6 +121,11 @@ truenas-config.yaml
 /build/
 /dist/
 /output/
+/artifacts/
+**/security-report.json
+**/bandit-report.json
+**/safety-report.json
+go/coverage.out
 
 # Documentation build
 /docs/_build/

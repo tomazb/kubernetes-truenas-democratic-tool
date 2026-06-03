@@ -250,6 +250,35 @@ func TestLoadNonExistentFile(t *testing.T) {
 	assert.Equal(t, "/metrics", cfg.Metrics.Path)
 }
 
+func TestLoadRejectsNonRegularFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := os.Mkdir(filepath.Join(tmpDir, "config.yaml"), 0o755)
+	require.NoError(t, err)
+
+	cfg, err := Load(filepath.Join(tmpDir, "config.yaml"))
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "not a regular file")
+}
+
+func TestLoadFailsOnConfigStatError(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	err := os.WriteFile(configPath, []byte("monitor:\n  reconcile_mode: poll\n"), 0o600)
+	require.NoError(t, err)
+
+	err = os.Chmod(tmpDir, 0o000)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.Chmod(tmpDir, 0o700)
+	})
+
+	cfg, err := Load(configPath)
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "failed to stat config file")
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string

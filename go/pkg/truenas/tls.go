@@ -16,7 +16,7 @@ type TLSOptions struct {
 func buildTLSConfig(opts TLSOptions) (*tls.Config, error) {
 	tlsCfg := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: opts.InsecureSkipVerify,
+		InsecureSkipVerify: opts.InsecureSkipVerify, // #nosec G402 -- explicit opt-in for dev/test.
 	}
 
 	if opts.CAFile == "" {
