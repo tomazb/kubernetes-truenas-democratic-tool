@@ -81,7 +81,7 @@ jobs:
             ./cmd/api-server
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/*
