@@ -19,7 +19,7 @@ jobs:
       STAGING_TRUENAS_PASSWORD: ${{ secrets.STAGING_TRUENAS_PASSWORD }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
